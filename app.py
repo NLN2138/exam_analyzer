@@ -4,6 +4,7 @@ import re
 import pandas as pd
 import joblib
 import os
+import subprocess
 
 # ==========================================
 # 1. 頁面配置與模型快取 (雲端優化)
@@ -16,10 +17,18 @@ st.set_page_config(
 
 @st.cache_resource
 def load_nlp_model():
-    """直接載入已安裝的 spaCy 中文模型"""
+    """自動檢查並載入 spaCy 中文模型，若無則自動下載"""
+    model_name = "zh_core_web_sm"
     try:
-        return spacy.load("zh_core_web_sm")
-    except Exception as e:
+        return spacy.load(model_name)
+    except OSError:
+        # 如果雲端環境尚未安裝該模型，自動透過指令進行安裝
+        try:
+            subprocess.run(["python", "-m", "spacy", "download", model_name], check=True)
+            return spacy.load(model_name)
+        except Exception as e:
+            return None
+    except Exception:
         return None
 
 @st.cache_resource
@@ -40,9 +49,8 @@ ml_model = load_ml_model()
 # ==========================================
 class QuestionPreprocessor:
     def __init__(self):
-        # 國小測驗卷常見的「東方語意標記」關聯詞正則字典
         self.semantic_markers = {
-            "因果": r"(because|因為|所以|由於|因此|導致|以致於)",
+            "因果": r"(because|because of|因為|所以|由於|因此|導致|以致於)",
             "假設": r"(如果|假使|要是|若|則|假如|一旦)",
             "轉折": r"(但是|可是|卻|雖然|然而|不過|只是)",
             "條件": r"(只要|只有|除非|無論|不管|任憑)",
@@ -61,7 +69,6 @@ class QuestionPreprocessor:
         valid_tokens = 0
         
         for token in doc:
-            # 排除標點符號與根節點 (ROOT)
             if token.dep_ != "ROOT" and not token.is_punct and token.pos_ != "PUNCT":
                 distance = abs(token.i - token.head.i)
                 total_distance += distance
@@ -70,14 +77,12 @@ class QuestionPreprocessor:
         return total_distance / valid_tokens if valid_tokens > 0 else 0.0
 
     def _classify_semantic_marker(self, text):
-        """依據正則表達式判定複句語意邏輯"""
         for marker, pattern in self.semantic_markers.items():
             if re.search(pattern, text):
                 return marker
-        return "連貫／承接" # 預設無明顯標記的承接句
+        return "連貫／承接"
 
     def analyze(self, text: str, subject: str) -> dict:
-        """執行完整的文字分析，回傳特徵字典"""
         word_count = len(text.strip())
         doc = nlp(text) if nlp else None
         mdd_value = self._calculate_mdd(doc)
@@ -91,10 +96,9 @@ class QuestionPreprocessor:
         }
 
 # ==========================================
-# 3. 預測邏輯 (整合機器學習與統計基線降級)
+# 3. 預測邏輯
 # ==========================================
 def predict_grade(analysis_result: dict) -> str:
-    """根據分析特徵預測適配年級"""
     if ml_model is not None:
         features_df = pd.DataFrame([analysis_result])
         try:
@@ -103,7 +107,6 @@ def predict_grade(analysis_result: dict) -> str:
         except Exception:
             pass 
     
-    # 統計基準線備用邏輯
     mdd = analysis_result["MDD(平均依存距離)"]
     subj = analysis_result["學科"]
     if mdd > 3.6 and subj in ["自然", "社會"]:
@@ -119,9 +122,8 @@ def predict_grade(analysis_result: dict) -> str:
 st.title("📚 國小測驗卷語句難度與語意分析系統")
 st.markdown("本系統基於量化語料庫與依存句法分析（MDD），評估國小各學科試題的句法負擔與適配年級。")
 
-# 系統健康狀態提示
 if nlp is None:
-    st.error("🚨 嚴重錯誤：無法載入 spaCy 中文模型 (`zh_core_web_sm`)。請檢查 requirements.txt 是否正確安裝。")
+    st.error("🚨 嚴重錯誤：無法載入或自動下載 spaCy 中文模型 (`zh_core_web_sm`)。請檢查網路或環境設定。")
     st.stop()
 
 if ml_model is None:
@@ -129,7 +131,6 @@ if ml_model is None:
 
 engine = QuestionPreprocessor()
 
-# 頁面左右分欄
 col1, col2 = st.columns([1, 1.8], gap="large")
 
 with col1:
@@ -161,10 +162,8 @@ with col2:
                 result = engine.analyze(question_text, subject)
                 predicted_grade = predict_grade(result)
             
-            # 顯示預測年級大卡片
             st.success(f"### 🎯 預測適配年級：**{predicted_grade}**")
             
-            # 三項核心指標數據卡片
             m1, m2, m3 = st.columns(3)
             m1.metric(
                 label="MDD (平均依存距離)", 
@@ -183,7 +182,6 @@ with col2:
             
             st.divider()
             
-            # 專家解讀與建議
             st.markdown("#### 💡 教學與命題檢核建議")
             mdd_val = result["MDD(平均依存距離)"]
             if mdd_val > 3.6:
