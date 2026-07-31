@@ -6,7 +6,7 @@ import joblib
 import os
 
 # ==========================================
-# 1. 頁面配置與模型快取 (效能優化)
+# 1. 頁面配置與模型自動下載/快取 (雲端優化)
 # ==========================================
 st.set_page_config(
     page_title="國小測驗卷語句難度與語意分析系統",
@@ -16,11 +16,18 @@ st.set_page_config(
 
 @st.cache_resource
 def load_nlp_model():
-    """載入 spaCy 中文模型，並快取在記憶體中"""
+    """確保雲端環境已安裝並載入 spaCy 中文模型，若無則自動下載"""
+    model_name = "zh_core_web_sm"
     try:
-        return spacy.load("zh_core_web_sm")
+        return spacy.load(model_name)
     except OSError:
-        return None
+        # 若雲端伺服器沒有該模型，自動透過指令下載
+        with st.spinner("正在背景下載中文語言模型，請稍候..."):
+            os.system(f"python -m spacy download {model_name}")
+        try:
+            return spacy.load(model_name)
+        except Exception as e:
+            return None
 
 @st.cache_resource
 def load_ml_model():
@@ -96,15 +103,14 @@ class QuestionPreprocessor:
 def predict_grade(analysis_result: dict) -> str:
     """根據分析特徵預測適配年級"""
     if ml_model is not None:
-        # 若有訓練好的模型，直接使用
         features_df = pd.DataFrame([analysis_result])
         try:
             prediction = ml_model.predict(features_df)[0]
             return str(prediction)
         except Exception:
-            pass # 若預測失敗則落入下方規則備案
+            pass 
     
-    # 統計基準線備用邏輯 (基於研究數據：MDD 在 5 年級達高峰，社會自然負擔較重)
+    # 統計基準線備用邏輯
     mdd = analysis_result["MDD(平均依存距離)"]
     subj = analysis_result["學科"]
     if mdd > 3.6 and subj in ["自然", "社會"]:
@@ -122,7 +128,7 @@ st.markdown("本系統基於量化語料庫與依存句法分析（MDD），評�
 
 # 系統健康狀態提示
 if nlp is None:
-    st.error("🚨 嚴重錯誤：找不到 spaCy 中文模型 (`zh_core_web_sm`)。請確認是否已正確安裝。")
+    st.error("🚨 嚴重錯誤：無法自動下載或載入 spaCy 中文模型 (`zh_core_web_sm`)。請檢查 requirements.txt 是否包含 `spacy`。")
     st.stop()
 
 if ml_model is None:
@@ -159,7 +165,6 @@ with col2:
             st.warning("⚠️ 請先輸入有效的試題文本！")
         else:
             with st.spinner("正在進行依存句法剖析與語意特徵萃取..."):
-                # 執行分析
                 result = engine.analyze(question_text, subject)
                 predicted_grade = predict_grade(result)
             
