@@ -6,7 +6,7 @@ import joblib
 import os
 
 # ==========================================
-# 1. 頁面配置與模型自動下載/快取 (雲端優化)
+# 1. 頁面配置與模型快取 (雲端優化)
 # ==========================================
 st.set_page_config(
     page_title="國小測驗卷語句難度與語意分析系統",
@@ -16,18 +16,11 @@ st.set_page_config(
 
 @st.cache_resource
 def load_nlp_model():
-    """確保雲端環境已安裝並載入 spaCy 中文模型，若無則自動下載"""
-    model_name = "zh_core_web_sm"
+    """直接載入已安裝的 spaCy 中文模型"""
     try:
-        return spacy.load(model_name)
-    except OSError:
-        # 若雲端伺服器沒有該模型，自動透過指令下載
-        with st.spinner("正在背景下載中文語言模型，請稍候..."):
-            os.system(f"python -m spacy download {model_name}")
-        try:
-            return spacy.load(model_name)
-        except Exception as e:
-            return None
+        return spacy.load("zh_core_web_sm")
+    except Exception as e:
+        return None
 
 @st.cache_resource
 def load_ml_model():
@@ -128,7 +121,7 @@ st.markdown("本系統基於量化語料庫與依存句法分析（MDD），評�
 
 # 系統健康狀態提示
 if nlp is None:
-    st.error("🚨 嚴重錯誤：無法自動下載或載入 spaCy 中文模型 (`zh_core_web_sm`)。請檢查 requirements.txt 是否包含 `spacy`。")
+    st.error("🚨 嚴重錯誤：無法載入 spaCy 中文模型 (`zh_core_web_sm`)。請檢查 requirements.txt 是否正確安裝。")
     st.stop()
 
 if ml_model is None:
