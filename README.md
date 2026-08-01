@@ -1,26 +1,138 @@
-# 📚 台灣中小學試題句子難度檢測系統
+```markdown
+# 📚 Taiwan K-6 Exam Question Sentence Difficulty Assessment System
 
-本專案是一個基於 **Streamlit** 與 **spaCy (自然語言處理)** 開發的台灣中小學試題難度自動檢測工具。透過分析文字的句法結構、詞彙深度以及平均依存距離 (MDD)，輔助教育工作者量化並評估試題的閱讀難度。
+An NLP and Machine Learning powered web application built with **Streamlit** to analyze and evaluate the difficulty level of Taiwan K-6 (elementary school) exam question sentences. 
 
-## ✨ 系統功能亮點
-
-1. **🚀 效能優化的單題/批次檢測**
-   - 運用 `spacy.pipe` 進行非同步批次解析，可快速處理數千題的 CSV/Excel 題庫。
-   - 自動運算試題總字數、詞數、名詞/動詞出現比例、MDD，並產出分析報告。
-
-2. **🧠 台灣教育語境深度分析**
-   - 具備特製的台灣學科進階詞彙庫（如：同溫層、光合作用、社會公平）。
-   - 自動識別複雜句式結構（因果、轉折、假設、條件與並列複句）。
-
-3. **📊 混合式難度分級 (Hybrid Grading)**
-   - 支援載入機器學習 `.pkl` 模型作為基準預測。
-   - 若無模型，系統自動無縫切換為「動態權重規則引擎」，準估適用年級（低/中/高）。
+The system leverages **spaCy** for Natural Language Processing, calculates **Mean Dependency Distance (MDD)** for syntactic complexity, detects 8 major Chinese compound sentence structures, and maps domain-specific vocabulary tailored to Taiwan's 108 Curriculum Guidelines (國語文, 數學, 社會, 自然).
 
 ---
 
-## 💻 如何在本地端執行？
+## ✨ Features
 
-1. Clone 此專案至本地端：
-   ```bash
-   git clone [https://github.com/您的帳號/Taiwan-Exam-Difficulty-Analyzer.git](https://github.com/您的帳號/Taiwan-Exam-Difficulty-Analyzer.git)
-   cd Taiwan-Exam-Difficulty-Analyzer
+- **✍️ Single Sentence Analysis**:
+  - Predicts target grade range (Grades 1-2, 3-4, 5-6+).
+  - Calculates length (character/word counts) and Part-of-Speech (POS) distribution ratios (nouns vs. verbs).
+  - Visualizes Mean Dependency Distance (MDD) via a gauge meter.
+  - Detects complex clause types and counts subject-specific academic vocabulary.
+
+- **📋 Batch Processing & Analytics Dashboard**:
+  - Supports **Multi-line text input** or **File Upload** (`.csv`, `.xlsx`).
+  - Auto-detects text columns (`題目`, `question`, `text`, `試題`, `內容`).
+  - Generates summary KPI metrics (Overall grade estimation, total word count, average MDD).
+  - Provides interactive **Plotly charts**:
+    - Estimated Grade Level Distribution (Pie Chart)
+    - Clause Structure Types Breakdown (Pie Chart)
+    - MDD Syntactic Complexity Distribution (Bar Chart)
+  - One-click CSV report export encoded with `utf-8-sig` for seamless Excel compatibility.
+
+- **🎯 Subject Domain Adaptability**:
+  - Custom domain vocabulary mappings covering over 200+ core terms per subject aligned with Taiwan's 108 Curriculum Guidelines:
+    - **Chinese Language (國語文)**
+    - **Mathematics (數學)**
+    - **Social Studies (社會)**
+    - **Natural Sciences (自然)**
+
+- **🤖 Hybrid Scoring Engine**:
+  - Automatically utilizes `mdd_baseline_model.pkl` (scikit-learn model) if present.
+  - Fallback dynamic heuristic scoring rule engine if no trained pickle model file is provided.
+
+---
+
+## 🛠️ Project Structure
+
+```text
+├── app.py                      # Main Streamlit web application
+├── requirements.txt            # Python dependencies and spaCy model URL
+├── mdd_baseline_model.pkl      # Optional pretrained ML model file
+└── README.md                   # Project documentation
+
+```
+
+---
+
+## 🚀 Getting Started
+
+### 1. Prerequisites
+
+Make sure you have **Python 3.10+** installed on your system.
+
+### 2. Installation
+
+1. **Clone the repository**:
+```bash
+git clone [https://github.com/your-username/your-repo-name.git](https://github.com/your-username/your-repo-name.git)
+cd your-repo-name
+
+```
+
+
+2. **Create and activate a virtual environment (Recommended)**:
+* **macOS / Linux**:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+
+```
+
+
+* **Windows**:
+```bash
+python -m venv venv
+venv\Scripts\activate
+
+```
+
+
+
+
+3. **Install Dependencies**:
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+
+```
+
+
+> **Note:** `requirements.txt` automatically downloads and installs the official spaCy Chinese model wheel (`zh_core_web_sm`).
+
+
+
+---
+
+## 💻 Running the Application
+
+Launch the Streamlit app locally with:
+
+```bash
+streamlit run app.py
+
+```
+
+Open your browser at `http://localhost:8501` to view the application.
+
+---
+
+## ⚙️ Configuration & Model Setup
+
+* **Pretrained ML Model**: If you have a trained model, place `mdd_baseline_model.pkl` in the root directory. The application will automatically detect and enable it.
+* **Dynamic Rule Engine**: If `mdd_baseline_model.pkl` is absent, the system gracefully falls back to the dynamic weighted scoring engine based on MDD, clause structures, and vocabulary depth.
+
+---
+
+## 🧰 Tech Stack
+
+* **UI Framework**: Streamlit
+* **NLP Pipeline**: spaCy Chinese (`zh_core_web_sm`)
+* **Data Manipulation**: pandas, openpyxl
+* **Machine Learning**: scikit-learn, joblib
+* **Data Visualization**: Plotly Express & Graph Objects
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+```
+
+```
