@@ -4,6 +4,7 @@ import pandas as pd
 import spacy
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go  # [新增] 為了繪製儀表板指標圖
 from typing import List, Dict, Any, Optional
 
 # ==========================================
@@ -27,14 +28,12 @@ CONNECTORS = {
     "選擇複句": ["不是...就是", "與其...不如", "寧可...也不"]
 }
 
-# [新增功能] 將進階詞彙分科管理
 SUBJECT_TERMS = {
     "國語文": {"敘事觀點", "文眼", "修辭", "譬喻", "借代", "韻文", "詞牌", "新詩", "意象", "寓言"},
     "數學": {"演算法", "方程式", "函數", "幾何", "機率", "微積分", "公因數", "質數", "公倍數", "未知數"},
     "社會": {"社會文化脈絡", "供給", "需求", "公義", "政治結構", "經濟條件", "環境影響", "社會公平", "單一因果", "偏誤", "多元觀點", "效率", "憲政體制", "權力分立", "職權", "濫用", "權益", "共識", "市場"},
     "自然": {"合力", "蒸發", "凝結", "光合作用", "分裂", "細胞", "生物體", "變因", "摩擦力", "加速度", "基因", "遺傳", "葉綠體", "演化"}
 }
-# 預先計算「全部學科」的聯集詞庫
 ALL_SUBJECT_TERMS = set().union(*SUBJECT_TERMS.values())
 
 # ==========================================
@@ -88,7 +87,6 @@ def analyze_clause_types(doc: spacy.tokens.Doc) -> str:
     return ", ".join(detected_types)
 
 def calculate_vocab_depth(doc: spacy.tokens.Doc, term_set: set) -> int:
-    # 根據傳入的專屬詞庫 (term_set) 來計算難詞數量
     return sum(1 for token in doc if token.text in term_set)
 
 def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str, Any]:
@@ -237,11 +235,13 @@ with st.sidebar:
         
     st.divider()
     
-    # [更新 UI] 增加「全部學科」選項，並放在第一位作為預設值
     subject = st.selectbox("學科", ["全部學科", "國語文", "數學", "社會", "自然"])
-    show_table = st.checkbox("顯示單題特徵明細表", value=True)
     
-    # 決定當下要使用的詞庫
+    st.markdown("### 👁️ 介面顯示設定")
+    # [新增] 單題檢測的顯示控制選項
+    show_table = st.checkbox("顯示單題特徵明細表", value=True)
+    show_single_charts = st.checkbox("顯示單題圖表視覺化", value=True)
+    
     if subject == "全部學科":
         current_term_set = ALL_SUBJECT_TERMS
     else:
@@ -262,7 +262,6 @@ with tab1:
         else:
             with st.spinner("分析中..."):
                 doc = nlp(question_text)
-                # 帶入選取的詞庫
                 features = extract_features_from_doc(doc, current_term_set)
                 predicted_grade = predict_grade(features, model)
                 
@@ -285,6 +284,42 @@ with tab1:
                         ]
                     }, use_container_width=True)
 
+                # [新增] 單題檢測的視覺化圖表
+                if show_single_charts:
+                    st.subheader("📊 單題視覺化圖表")
+                    col_chart1, col_chart2 = st.columns(2)
+                    
+                    # 圖表 1：MDD 依存距離雷達指標圖
+                    fig_mdd_gauge = go.Figure(go.Indicator(
+                        mode = "gauge+number",
+                        value = features['mdd'],
+                        domain = {'x': [0, 1], 'y': [0, 1]},
+                        title = {'text': "MDD 依存距離指標<br><span style='font-size:0.8em;color:gray'>數值越高代表句法越複雜崎嶇</span>"},
+                        gauge = {
+                            'axis': {'range': [None, 6]},
+                            'bar': {'color': "#1f77b4"},
+                            'steps' : [
+                                {'range': [0, 2.6], 'color': "#d9f0d3"},    # 綠色：安全簡單
+                                {'range': [2.6, 4.0], 'color': "#fff2ae"},  # 黃色：中等
+                                {'range': [4.0, 6.0], 'color': "#fbb4ae"}   # 紅色：困難
+                            ],
+                        }
+                    ))
+                    col_chart1.plotly_chart(fig_mdd_gauge, use_container_width=True)
+                    
+                    # 圖表 2：詞性結構占比圓餅圖
+                    other_ratio = max(0, 1.0 - features['noun_ratio'] - features['verb_ratio'])
+                    df_pos = pd.DataFrame({
+                        "詞性": ["名詞與專有名詞", "動詞", "其他附屬詞"],
+                        "比例": [features['noun_ratio'], features['verb_ratio'], other_ratio]
+                    })
+                    fig_pos = px.pie(df_pos, names="詞性", values="比例", hole=0.4, 
+                                     title="句子詞性結構占比", 
+                                     color_discrete_sequence=px.colors.qualitative.Pastel)
+                    fig_pos.update_traces(textposition='inside', textinfo='percent+label')
+                    fig_pos.update_layout(showlegend=False)
+                    col_chart2.plotly_chart(fig_pos, use_container_width=True)
+
 # --- TAB 2: 批次查詢與統計儀表板 ---
 with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
@@ -294,7 +329,6 @@ with tab2:
         if st.button("⚡ 開始批次分析與產生圖表", type="primary"):
             q_list = [line.strip() for line in batch_text.split("\n") if line.strip()]
             if q_list:
-                # 帶入選取的詞庫
                 res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
                 
                 st.divider()
@@ -321,7 +355,6 @@ with tab2:
                     
                     st.info(f"成功擷取 {len(q_list)} 題，準備分析。")
                     if st.button("⚡ 開始批次分析與產生圖表", type="primary"):
-                        # 帶入選取的詞庫
                         res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
                         
                         st.divider()
