@@ -27,12 +27,15 @@ CONNECTORS = {
     "選擇複句": ["不是...就是", "與其...不如", "寧可...也不"]
 }
 
-ADVANCED_TERMS = {
-    "演算法", "同溫層", "合力", "敘事觀點", "社會文化脈絡", "供給", "需求",
-    "蒸發", "凝結", "光合作用", "分裂", "細胞", "生物體", "公義", "政治結構",
-    "經濟條件", "環境影響", "社會公平", "單一因果", "偏誤", "多元觀點", "效率",
-    "憲政體制", "權力分立", "變因", "共識", "職權", "濫用", "權益"
+# [新增功能] 將進階詞彙分科管理
+SUBJECT_TERMS = {
+    "國語文": {"敘事觀點", "文眼", "修辭", "譬喻", "借代", "韻文", "詞牌", "新詩", "意象", "寓言"},
+    "數學": {"演算法", "方程式", "函數", "幾何", "機率", "微積分", "公因數", "質數", "公倍數", "未知數"},
+    "社會": {"社會文化脈絡", "供給", "需求", "公義", "政治結構", "經濟條件", "環境影響", "社會公平", "單一因果", "偏誤", "多元觀點", "效率", "憲政體制", "權力分立", "職權", "濫用", "權益", "共識", "市場"},
+    "自然": {"合力", "蒸發", "凝結", "光合作用", "分裂", "細胞", "生物體", "變因", "摩擦力", "加速度", "基因", "遺傳", "葉綠體", "演化"}
 }
+# 預先計算「全部學科」的聯集詞庫
+ALL_SUBJECT_TERMS = set().union(*SUBJECT_TERMS.values())
 
 # ==========================================
 # 1. 頁面基本設定
@@ -84,10 +87,11 @@ def analyze_clause_types(doc: spacy.tokens.Doc) -> str:
             
     return ", ".join(detected_types)
 
-def calculate_vocab_depth(doc: spacy.tokens.Doc) -> int:
-    return sum(1 for token in doc if token.text in ADVANCED_TERMS)
+def calculate_vocab_depth(doc: spacy.tokens.Doc, term_set: set) -> int:
+    # 根據傳入的專屬詞庫 (term_set) 來計算難詞數量
+    return sum(1 for token in doc if token.text in term_set)
 
-def extract_features_from_doc(doc: spacy.tokens.Doc) -> Dict[str, Any]:
+def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str, Any]:
     word_count = len(doc)
     char_count = len(doc.text)
     
@@ -108,7 +112,7 @@ def extract_features_from_doc(doc: spacy.tokens.Doc) -> Dict[str, Any]:
         "verb_ratio": verb_ratio,
         "mdd": mdd,
         "clause_types": analyze_clause_types(doc),
-        "vocab_depth": calculate_vocab_depth(doc)
+        "vocab_depth": calculate_vocab_depth(doc, term_set)
     }
 
 def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> str:
@@ -150,13 +154,13 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> str:
     elif score <= 2.5: return "1-2 年級 (低年級)"
     else: return "3-4 年級 (中年級)"
 
-def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model) -> pd.DataFrame:
+def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, term_set: set) -> pd.DataFrame:
     results = []
     progress_bar = st.progress(0)
     total = len(question_list)
     
     for i, doc in enumerate(nlp_model.pipe(question_list, batch_size=50)):
-        feat = extract_features_from_doc(doc)
+        feat = extract_features_from_doc(doc, term_set)
         grade = predict_grade(feat, difficulty_model)
         
         results.append({
@@ -179,7 +183,7 @@ def render_statistics_charts(df: pd.DataFrame):
     st.markdown("### 📊 批次分析統計儀表板")
     col1, col2, col3 = st.columns(3)
     
-    # 1. 預估年級占比 (圓餅圖)
+    # 1. 預估年級占比
     grade_counts = df["預估適用年級"].value_counts().reset_index()
     grade_counts.columns = ["年級", "題數"]
     fig_grade = px.pie(grade_counts, names="年級", values="題數", hole=0.4, 
@@ -189,7 +193,7 @@ def render_statistics_charts(df: pd.DataFrame):
     fig_grade.update_layout(showlegend=False)
     col1.plotly_chart(fig_grade, use_container_width=True)
     
-    # 2. 句式占比 (圓餅圖) - 自動拆解包含多重句式的欄位
+    # 2. 句式占比
     clause_series = df["複句結構與句式"].str.split(", ").explode()
     clause_counts = clause_series.value_counts().reset_index()
     clause_counts.columns = ["句式", "出現次數"]
@@ -200,11 +204,10 @@ def render_statistics_charts(df: pd.DataFrame):
     fig_clause.update_layout(showlegend=False)
     col2.plotly_chart(fig_clause, use_container_width=True)
     
-    # 3. MDD 區間分布 (長條圖)
+    # 3. MDD 區間分布
     bins = [0, 1, 2, 3, 4, 5, 100]
     labels = ['0-1', '1-2', '2-3', '3-4', '4-5', '5以上']
     df_mdd = df.copy()
-    # 將 MDD 切分為指定區間 (right=False 代表包含左邊界但不含右邊界，例如 [1, 2) )
     df_mdd['MDD區間'] = pd.cut(df_mdd['MDD數值'], bins=bins, labels=labels, right=False)
     mdd_counts = df_mdd['MDD區間'].value_counts().sort_index().reset_index()
     mdd_counts.columns = ["MDD區間", "題數"]
@@ -233,11 +236,19 @@ with st.sidebar:
         st.warning("⚠️ 啟用動態積分評分引擎 (未載入 pkl 模型)")
         
     st.divider()
-    subject = st.selectbox("學科", ["國語文", "數學", "社會", "自然"])
+    
+    # [更新 UI] 增加「全部學科」選項，並放在第一位作為預設值
+    subject = st.selectbox("學科", ["全部學科", "國語文", "數學", "社會", "自然"])
     show_table = st.checkbox("顯示單題特徵明細表", value=True)
+    
+    # 決定當下要使用的詞庫
+    if subject == "全部學科":
+        current_term_set = ALL_SUBJECT_TERMS
+    else:
+        current_term_set = SUBJECT_TERMS.get(subject, set())
 
 st.title("📚 台灣中小學試題句子難度檢測系統")
-st.caption("支援單題檢測、句式特徵解析，以及多題文字貼上／檔案上傳的批次檢測。")
+st.caption(f"目前分析學科模式：**{subject}** (將依據對應學科之進階詞庫進行難度加權)")
 
 tab1, tab2 = st.tabs(["✍️ 單題檢測與複句分析", "📋 批次多題檢測與統計儀表板"])
 
@@ -251,7 +262,8 @@ with tab1:
         else:
             with st.spinner("分析中..."):
                 doc = nlp(question_text)
-                features = extract_features_from_doc(doc)
+                # 帶入選取的詞庫
+                features = extract_features_from_doc(doc, current_term_set)
                 predicted_grade = predict_grade(features, model)
                 
                 st.divider()
@@ -264,7 +276,7 @@ with tab1:
                 if show_table:
                     st.subheader("📋 試題特徵明細")
                     st.dataframe({
-                        "特徵名稱": ["總詞數", "名詞比例", "動詞比例", "進階術語計數"],
+                        "特徵名稱": ["總詞數", "名詞比例", "動詞比例", "該科進階術語計數"],
                         "數值": [
                             features['word_count'], 
                             f"{features['noun_ratio']:.1%}", 
@@ -282,12 +294,12 @@ with tab2:
         if st.button("⚡ 開始批次分析與產生圖表", type="primary"):
             q_list = [line.strip() for line in batch_text.split("\n") if line.strip()]
             if q_list:
-                res_df = run_batch_analysis(q_list, nlp, model)
-                # 繪製圖表
+                # 帶入選取的詞庫
+                res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
+                
                 st.divider()
                 render_statistics_charts(res_df)
                 
-                # 顯示表格與下載
                 st.markdown("### 📝 詳細題目檢測報表")
                 st.dataframe(res_df, use_container_width=True)
                 st.download_button("📥 下載 CSV 報告", res_df.to_csv(index=False).encode("utf-8-sig"), "文字批次報告.csv", "text/csv")
@@ -309,13 +321,12 @@ with tab2:
                     
                     st.info(f"成功擷取 {len(q_list)} 題，準備分析。")
                     if st.button("⚡ 開始批次分析與產生圖表", type="primary"):
-                        res_df = run_batch_analysis(q_list, nlp, model)
+                        # 帶入選取的詞庫
+                        res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
                         
-                        # 繪製圖表
                         st.divider()
                         render_statistics_charts(res_df)
                         
-                        # 顯示表格與下載
                         st.markdown("### 📝 詳細題目檢測報表")
                         st.dataframe(res_df, use_container_width=True)
                         st.download_button("📥 下載結果", res_df.to_csv(index=False).encode("utf-8-sig"), "檔案分析報告.csv", "text/csv")
