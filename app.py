@@ -172,7 +172,7 @@ DEFAULT_EXAM_PAPER = """臺北市立OO國民中學 113 學年度第一學期 綜
 # 1. 頁面設定
 # ==========================================
 st.set_page_config(
-    page_title="台灣 K-12 與高中試題難度檢測系統",
+    page_title="台灣 K-12 試題語句難度檢測系統 v1.0（雛形）",
     page_icon="📚",
     layout="wide"
 )
