@@ -143,7 +143,7 @@ DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
 # 1. 頁面設定
 # ==========================================
 st.set_page_config(
-    page_title="台灣中小學與高中試題難度檢測系統",
+    page_title="台灣 K-12 與高中試題難度檢測系統",
     page_icon="📚",
     layout="wide"
 )
@@ -167,7 +167,7 @@ def load_difficulty_model():
     return None
 
 # ==========================================
-# 3. 難度特徵運算邏輯
+# 3. 難度特徵運算邏輯 (路線 A 多維度補償)
 # ==========================================
 def analyze_clause_types(doc: spacy.tokens.Doc) -> str:
     text = doc.text
@@ -221,16 +221,24 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
     else:
         base_mdd = 0.0
     
-    # 🌟 核心升級：跨分句/跨標點依存補償因子 (Punctuation & Multi-clause Compensation)
-    # 彌補 spaCy 輕量模型遇到逗點/頓點時將跨句依存關係人為截斷的缺陷
-    clause_delimiters = doc.text.count("，") + doc.text.count("、") + doc.text.count("；")
+    # 🌟 路線 A 升級：多維度 MDD 校正演算法
+    raw_text = doc.text
+    sub_clauses = re.split(r'[，。；]', raw_text)
+    max_clause_len = max(len(c) for c in sub_clauses) if sub_clauses else char_count
+    clause_delimiters = raw_text.count("，") + raw_text.count("；")
     
-    if char_count >= 45 and clause_delimiters >= 2:
-        # 當字數突破 45 字且具備多重分句時，進行長難句結構延伸補償
-        compensation_factor = 1.0 + (0.12 * clause_delimiters)
-        adjusted_mdd = base_mdd * compensation_factor
-    else:
-        adjusted_mdd = base_mdd
+    # 1. 多分句標點補償
+    punct_factor = 0.10 * clause_delimiters
+    
+    # 2. 單一分句連綿超長補償 (針對少標點的超長嵌入句)
+    long_chunk_factor = max(0.0, (max_clause_len - 35) / 10) * 0.15 if max_clause_len > 35 else 0.0
+    
+    # 3. 名詞高密度修正 (修正複合名詞距離為 1 導致平均 MDD 被拉低的情形)
+    noun_density_factor = (noun_ratio - 0.35) * 1.5 if noun_ratio > 0.35 else 0.0
+    
+    # 總補償係數
+    total_compensation = 1.0 + punct_factor + long_chunk_factor + noun_density_factor
+    adjusted_mdd = base_mdd * total_compensation if char_count >= 40 else base_mdd
 
     return {
         "text": doc.text,
@@ -267,16 +275,18 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     elif features["char_count"] >= 35: score += 1.0
     elif features["char_count"] >= 55: score += 2.0
     elif features["char_count"] >= 75: score += 3.0
+    elif features["char_count"] >= 90: score += 4.0
     
     # 2. 校正後 MDD 距離加權
     if features["mdd"] < 2.5: score -= 1.0
     elif 3.0 <= features["mdd"] < 3.8: score += 1.0
-    elif 3.8 <= features["mdd"] < 4.5: score += 2.5
-    elif features["mdd"] >= 4.5: score += 4.0
+    elif 3.8 <= features["mdd"] < 4.8: score += 2.5
+    elif features["mdd"] >= 4.8: score += 4.5
     
     # 3. 名詞密度加權
     if features["noun_ratio"] < 0.20: score -= 0.5
     elif features["noun_ratio"] > 0.35: score += 1.0
+    elif features["noun_ratio"] > 0.45: score += 2.0
     
     # 4. 複句結構加權
     complex_clauses = ["進階論述句", "目的複句", "選擇複句", "遞進複句", "推斷複句", "假轉複句", "取捨複句"]
@@ -286,10 +296,11 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     # 5. 進階/學術詞彙加權
     if features["vocab_depth"] >= 1: score += 1.5
     if features["vocab_depth"] >= 3: score += 1.5
+    if features["vocab_depth"] >= 5: score += 2.0
 
-    # K-12 全學程年級判定卡尺
+    # 💡 中小學與高中（或以上）年級判定卡尺
     if score >= 9.5:
-        grade_str = "10-12 年級 (高中)"
+        grade_str = "10-12 年級 (高中或以上)"
     elif score >= 7.0:
         grade_str = "7-9 年級 (國中)"
     elif score >= 5.0:
@@ -302,7 +313,7 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     return grade_str, score
 
 def map_score_to_grade_str(avg_score: float) -> str:
-    if avg_score >= 9.5: return "10-12 年級 (高中)"
+    if avg_score >= 9.5: return "10-12 年級 (高中或以上)"
     elif avg_score >= 7.0: return "7-9 年級 (國中)"
     elif avg_score >= 5.0: return "5-6 年級 (高年級)"
     elif avg_score >= 3.0: return "3-4 年級 (中年級)"
@@ -373,8 +384,8 @@ def render_statistics_charts(df: pd.DataFrame):
     fig_clause.update_layout(showlegend=False)
     col2.plotly_chart(fig_clause, use_container_width=True)
     
-    bins = [0, 2.5, 3.5, 4.5, 5.5, 100]
-    labels = ['<2.5 (簡單)', '2.5-3.5', '3.5-4.5', '4.5-5.5', '5.5+ (高難)']
+    bins = [0, 2.5, 3.5, 4.5, 6.0, 100]
+    labels = ['<2.5 (簡單)', '2.5-3.5', '3.5-4.5', '4.5-6.0 (高中)', '6.0+ (高難/頂尖)']
     df_mdd = df.copy()
     df_mdd['MDD區間'] = pd.cut(df_mdd['MDD數值'], bins=bins, labels=labels, right=False)
     mdd_counts = df_mdd['MDD區間'].value_counts().sort_index().reset_index()
@@ -415,8 +426,8 @@ with st.sidebar:
     else:
         current_term_set = SUBJECT_TERMS.get(subject, set())
 
-st.title("📚 台灣 K-12 試題句子難度檢測系統")
-st.caption(f"目前分析學科模式：**{subject}** (將依據對應學科之進階詞庫進行難度加權)")
+st.title("📚 台灣中小學與高中試題難度檢測系統")
+st.caption(f"目前分析學科模式：**{subject}** (涵蓋國小低年級至高中或以上程度)")
 
 tab1, tab2 = st.tabs(["✍️ 單句分析", "📋 多句分析"])
 
@@ -425,7 +436,7 @@ with tab1:
     question_text = st.text_area(
         "題目文字", 
         height=130, 
-        placeholder=f"請輸入單一試題...\n\n若未輸入內容直接點選分析，將自動載入預設範例題：\n{DEFAULT_SINGLE_Q}"
+        placeholder=f"請輸入單一試題...\n\n若未輸入內容點選分析，將自動載入預設範例題：\n{DEFAULT_SINGLE_Q}"
     )
 
     if st.button("🚀 開始檢測單句", type="primary"):
@@ -449,13 +460,13 @@ with tab1:
             cols[1].metric("📏 總字數", f"{features['char_count']} 字")
             cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", 
                            delta=f"基礎: {features['base_mdd']:.2f}" if features['mdd'] != features['base_mdd'] else None,
-                           help="含長難句跨分句補償" if features['mdd'] != features['base_mdd'] else "未觸發長句補償")
+                           help="含長難句與名詞稀釋雙補償" if features['mdd'] != features['base_mdd'] else "未觸發長句補償")
             cols[3].metric("🔗 複句結構", features["clause_types"])
                 
             if show_table:
                 st.subheader("📋 試題特徵明細")
                 st.dataframe({
-                    "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "原始 MDD (無標點)", "修正 MDD (跨分句補償)"],
+                    "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "原始 MDD (無標點)", "修正 MDD (路線 A 補償)"],
                     "數值": [
                         features['word_count'], 
                         f"{features['noun_ratio']:.1%}", 
@@ -474,14 +485,14 @@ with tab1:
                     mode = "gauge+number",
                     value = features['mdd'],
                     domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "MDD 依存距離指標 (已含長句校正)<br><span style='font-size:0.8em;color:gray'>數值高於 4.5 即屬高中等級長難句</span>"},
+                    title = {'text': "MDD 依存距離指標 (已含路線 A 校正)<br><span style='font-size:0.8em;color:gray'>數值 ≥ 4.5 屬高中或以上長難句</span>"},
                     gauge = {
-                        'axis': {'range': [None, 8.0]},
+                        'axis': {'range': [None, 10.0]},
                         'bar': {'color': "#1f77b4"},
                         'steps' : [
                             {'range': [0, 3.0], 'color': "#d9f0d3"},    
                             {'range': [3.0, 4.5], 'color': "#fff2ae"},  
-                            {'range': [4.5, 8.0], 'color': "#fbb4ae"}   
+                            {'range': [4.5, 10.0], 'color': "#fbb4ae"}   
                         ],
                     }
                 ))
@@ -504,7 +515,7 @@ with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
     if batch_mode == "📋 貼上多行文字":
-        placeholder_text = f"請貼上多行試題（每行一題）...\n\n若未輸入內容直接點選分析，將自動載入預設題庫：\n\n{DEFAULT_BATCH_Q}"
+        placeholder_text = f"請貼上多行試題（每行一題）...\n\n若未輸入內容點選分析，將自動載入預設題庫：\n\n{DEFAULT_BATCH_Q}"
         
         batch_text = st.text_area(
             "每行一題：", 
