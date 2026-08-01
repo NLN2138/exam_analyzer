@@ -377,10 +377,10 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
         score = min(score, 2.5)
 
     # 🌟 8. 提高各年級評定門檻 (使整體判定往低年級挪移)
-    if score >= 10.0: grade_str = "10-12 年級 (高中或以上)"   # 原本 9.5
+    if score >= 10.0: grade_str = "10-12 年級 (高中以上)"   # 原本 9.5
     elif score >= 7.5: grade_str = "7-9 年級 (國中)"          # 原本 7.0
-    elif score >= 5.0: grade_str = "5-6 年級 (國小高年級)"
-    elif score >= 3.0: grade_str = "3-4 年級 (國小中年級)"
+    elif score >= 5.0: grade_str = "5-6 年級 (國小)"
+    elif score >= 3.0: grade_str = "3-4 年級 (國小)"
     else: grade_str = "1-2 年級 (國小低年級)"
     
     return grade_str, score
@@ -388,11 +388,11 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
 
 def map_score_to_grade_str(avg_score: float) -> str:
     """ 考卷整體分數映射門檻同步下修校正 """
-    if avg_score >= 10.0: return "10-12 年級 (高中或以上)"
+    if avg_score >= 10.0: return "10-12 年級 (高中以上)"
     elif avg_score >= 7.5: return "7-9 年級 (國中)"
-    elif avg_score >= 5.0: return "5-6 年級 (國小高年級)"
-    elif avg_score >= 3.0: return "3-4 年級 (國小中年級)"
-    else: return "1-2 年級 (國小低年級)"
+    elif avg_score >= 5.0: return "5-6 年級 (國小)"
+    elif avg_score >= 3.0: return "3-4 年級 (國小)"
+    else: return "1-2 年級 (國小)"
 
 def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, term_set: set) -> pd.DataFrame:
     results = []
@@ -577,10 +577,10 @@ with st.sidebar:
     else:
         current_term_set = SUBJECT_TERMS.get(subject, set())
 
-st.title("📚 台灣中小學與高中試題難度檢測系統")
-st.caption(f"目前分析學科模式：**{subject}** (涵蓋國小低年級至高中或以上程度)")
+st.title("📚 台灣中小學評量句子難度檢測系統")
+st.caption(f"目前分析學科模式：**{subject}**")
 
-tab1, tab2, tab3 = st.tabs(["✍️ 單句分析", "📋 多句分析", "📄 整份考題分析 (智慧降噪)"])
+tab1, tab2, tab3 = st.tabs(["✍️ 單句分析", "📋 多句分析", "📄 試卷分析 (智慧降噪)"])
 
 # --- TAB 1: 單句檢測 ---
 with tab1:
