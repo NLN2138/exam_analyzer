@@ -120,6 +120,13 @@ CONNECTORS = {
 INSTRUCTION_PATTERNS = [
     r'請[畫劃選填寫看算選]看', r'下列[何者|敘述]', r'正確的[打畫]', r'填入[適當|正確]',
     r'回答[下列|以下]問題', r'選出[一個|正確]', r'第.*題', r'每題.*分', r'共.*分',
+    r'閱讀測驗', r'一、', r'二、', r'三、', r'四、', r'五、', r'六、', r'七、', r me if False else r'八、',
+    r'看圖[回答|填]', r'勾選', r'連連看', r'圈圈看'
+]
+# 清理語法
+INSTRUCTION_PATTERNS = [
+    r'請[畫劃選填寫看算選]看', r'下列[何者|敘述]', r'正確的[打畫]', r'填入[適當|正確]',
+    r'回答[下列|以下]問題', r'選出[一個|正確]', r'第.*題', r'每題.*分', r'共.*分',
     r'閱讀測驗', r'一、', r'二、', r'三、', r'四、', r'五、', r'六、', r'七、', r'八、',
     r'看圖[回答|填]', r'勾選', r'連連看', r'圈圈看'
 ]
@@ -133,12 +140,40 @@ DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
 雖然這道數學題看起來非常複雜，但是只要畫圖仔細思考，就能找到答案。
 閱讀課外讀物不但能幫助我們認識世界，而且能豐富我們的想像力。
 在進行科學探究時，只有嚴格控制所有的實驗變因，才能確保最終數據的準確性。
-面對團隊合作的意見分歧，我們與其互相爭論誰的點子最好，不如冷靜下來尋找共識。
+面對團隊合作的意见分歧，我們與其互相爭論誰的點子最好，不如冷靜下來尋找共識。
 現代民主國家設立了權力分立的憲政體制，以免少數掌權者濫用職權而侵害人民的基本權益。
 藝術家嘗試運用跨領域的數位互動多媒體視覺效果與傳統水墨繪畫技法進行深度融合，進而在充滿未來感的展覽空間中營造出一種能夠誘導觀者進行深刻自我審視與哲學反思的沈浸式藝術體驗。
 為了有效緩解因城市化進程迅速推進與車輛持有量暴增所帶來的市中心交通癱瘓與空氣品質惡化問題，市政府決定籌措巨額預算全面建構以軌道運輸為骨幹且低碳環保的大眾運輸系統。
 這場關乎全人類未來生存命運的大氣與環境科學國際高峰研討會，集結了來自全球數十個國家在氣候變遷領域具有卓越學術貢獻的頂尖學者，共同針對全球暖化對亞熱帶地區糧食生產安全性所造成的嚴峻衝擊進行深度的研討與對策擬定。
 基於現象學還原論針對主體間性所提出的解構性思維，學者們試圖透過重新建構個體在意識流演變過程中所經驗到的時空感知經驗，來回應當代存在主義哲學在面臨數位科技虛擬化浪潮時所遭遇到的本體論危機與價值轉向議題。
+"""
+
+# 🌟 新增：整份考題預設範例 (含題號、配分、低年級指示句、選項與長題幹混合)
+DEFAULT_EXAM_PAPER = """臺北市立國民中學 113 學年度第一學期 綜合學科 期末定期評量試卷
+班級：八年級 ___班  姓名：_________  座號：___ (每題4分，共100分)
+
+一、 基礎題（請選出一個最適當的答案，並在答案卡上填塗）
+1. (  ) 下列關於細胞構造的敘述，何者完全正確？
+(A) 葉綠體是細胞進行呼吸作用的主要場所
+(B) 細胞核內含有遺傳物質 DNA，能控制細胞的生理活動
+(C) 所有植物細胞都具有大液胞與細胞壁，且均能進行光合作用
+(D) 粒線體能將光能轉化為化學能以維持生命運作
+
+2. (  ) 關於我國憲政體制的權力分立原則，下列何者說明正確？
+(A) 行政院負責審議法律案與中央政府總預算案
+(B) 監察院掌理彈劾、糾舉及審計權，以防止公務員濫用職權
+(C) 司法院由總統直接指揮，負責審理民事與刑事訴訟
+(D) 立法院得對行政院院長提出不信任案，並得隨時解散立法院
+
+二、 閱讀理解與題組（閱讀下列文本後回答第 3-5 題）
+    為了有效緩解因城市化進程迅速推進與車輛持有量暴增所帶來的市中心交通癱瘓與空氣品質惡化問題，市政府決定籌措巨額預算，全面建構以軌道運輸為骨幹且低碳環保的大眾運輸系統。
+    在進行這項重大公共工程規劃時，專家團隊不僅需要精確評估各路線的運輸效率與機會成本，更必須審慎考量環境影響與社會公平。面對各界意見分歧，決策者與其互相爭論，不如透過建立多元觀點的溝通機制，尋找社會最大公義之共識。
+
+3. (  ) 根據上文脈絡，市政府推動低碳大眾運輸系統的核心旨在解決何種課題？
+(A) 促進地方觀光產業發展 (B) 緩解交通癱瘓與空氣品質惡化 (C) 降低車輛車牌考照門檻 (D) 提高汽機車銷售稅率
+
+4. (  ) 文中所提及「評估各路線的機會成本」，在經濟學上所指的涵義為何？
+(A) 興建軌道系統所消耗的電力總總支出 (B) 放棄掉的其他可能選擇中，價值最高者 (C) 政府向市民徵收的交通稅收總額 (D) 搭乘大眾運輸工具時的單程票價
 """
 
 # ==========================================
@@ -169,7 +204,7 @@ def load_difficulty_model():
     return None
 
 # ==========================================
-# 3. 試題清洗與拆分引擎 (進階智慧降噪版)
+# 3. 試題清洗與拆分引擎 (智慧降噪)
 # ==========================================
 def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str], List[str]]:
     """
@@ -202,7 +237,7 @@ def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str],
             filtered_out.append(f"[過短] {s_strip}")
             continue
             
-        # 4. 指令句與題型標頭過濾（低年級拉低難度的主要雜訊來源）
+        # 4. 指令句與題型標頭過濾
         is_instruction = any(re.search(pat, s_strip) for pat in INSTRUCTION_PATTERNS)
         if is_instruction and len(s_strip) < 28:
             filtered_out.append(f"[指令句] {s_strip}")
@@ -218,7 +253,7 @@ def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str],
     return valid_sentences, filtered_out
 
 # ==========================================
-# 4. 難度特徵運算邏輯 (含保底門檻與平滑校正)
+# 4. 難度特徵運算邏輯
 # ==========================================
 def analyze_clause_types(doc: spacy.tokens.Doc) -> str:
     text = doc.text
@@ -298,7 +333,6 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
 def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[str, float]:
     score = 3.0
     
-    # 1. ML 模型輔助評分
     if ml_model is not None:
         try:
             df_features = pd.DataFrame([{
@@ -314,7 +348,6 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
         except Exception:
             pass
 
-    # 2. 字數平滑加權 (解決短句低年級膨脹與長句加成)
     char_len = features["char_count"]
     if char_len <= 15: score -= 1.5
     elif char_len <= 25: score -= 0.5
@@ -323,7 +356,6 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     elif 71 <= char_len <= 100: score += 2.5
     elif char_len > 100: score += 4.0
     
-    # 3. MDD 依存距離區間校正
     mdd = features["mdd"]
     if mdd < 2.0: score -= 1.5
     elif 2.0 <= mdd < 2.8: score -= 0.5
@@ -331,34 +363,28 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     elif 4.2 <= mdd < 5.0: score += 2.5
     elif mdd >= 5.0: score += 4.0
 
-    # 4. 名詞密度校正 (高年級題目抽象概念與名詞密度顯著偏高)
     noun_r = features["noun_ratio"]
     if noun_r < 0.20: score -= 1.0
     elif 0.35 <= noun_r < 0.45: score += 1.0
     elif noun_r >= 0.45: score += 2.0
 
-    # 5. 複句結構
     complex_clauses = ["進階論述句", "目的複句", "選擇複句", "遞進複句", "推斷複句", "假轉複句", "取捨複句"]
     if any(c in features["clause_types"] for c in complex_clauses):
         score += 1.5
 
-    # 6. 學科術語與專有名詞地基校正 (解決高年級概念難但句式簡單被低估)
     v_depth = features["vocab_depth"]
     if v_depth == 1: score += 1.0
     elif v_depth == 2: score += 2.0
     elif v_depth >= 3: score += 3.5
     
-    # 🌟【學科保底門檻】觸發多個專業術語，直接保底為國中(6.5)或高中(8.5)以上
     if v_depth >= 3 and score < 8.5:
         score = max(score, 8.5)
     elif v_depth >= 2 and score < 6.5:
         score = max(score, 6.5)
 
-    # 7. 低年級短句無詞彙懲罰 (解決低年級高估)
     if char_len < 20 and v_depth == 0 and "簡單句" in features["clause_types"]:
         score = min(score, 3.5)
 
-    # 年級映射
     if score >= 9.5: grade_str = "10-12 年級 (高中或以上)"
     elif score >= 7.0: grade_str = "7-9 年級 (國中)"
     elif score >= 5.0: grade_str = "5-6 年級 (國小高年級)"
@@ -402,12 +428,8 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
 # 5. 視覺化統計與整體試卷加權 UI
 # ==========================================
 def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, float]:
-    """
-    採用 Top 30% 最難語句 (P75 加權) 來評估整份考卷難度，避免傳統平均數被低難度題目稀釋
-    """
     scores = df["分數_hidden"].values
     if len(scores) >= 5:
-        # 取前 30% 最難語句的分數進行加權平均
         top_30_cutoff = np.percentile(scores, 70)
         hard_scores = [s for s in scores if s >= top_30_cutoff]
         overall_score = float(np.mean(hard_scores))
@@ -417,7 +439,6 @@ def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, 
     overall_grade_str = map_score_to_grade_str(overall_score)
     total_chars = int(df["總字數"].sum())
     
-    # MDD 同樣採用 Top 30% 代表性語句之平均
     if len(df) >= 5:
         top_mdd_cutoff = np.percentile(df["MDD數值"].values, 70)
         avg_mdd = df[df["MDD數值"] >= top_mdd_cutoff]["MDD數值"].mean()
@@ -575,45 +596,42 @@ with tab3:
     raw_exam_paper = st.text_area(
         "請貼上整份考題文字：",
         height=320,
-        placeholder="請在此直接貼上完整的考題內文（包含題號、改錯字、閱讀測驗、選擇題等混合內容）..."
+        placeholder=f"請在此直接貼上完整的考題內文...\n\n若未輸入內容點選分析，將自動載入預設試卷範例：\n{DEFAULT_EXAM_PAPER}"
     )
     
     if st.button("🔍 雜訊過濾並開始分析考題", type="primary"):
         exam_input = raw_exam_paper.strip()
         if not exam_input:
-            st.warning("⚠️ 請輸入考題內容！")
+            exam_input = DEFAULT_EXAM_PAPER
+            st.info("💡 您未輸入考題內容，已自動載入**預設考題範例**進行降噪與深度分析。")
+
+        with st.spinner("正在進行文本降噪、結構切割與深度特徵提取..."):
+            extracted_sentences, filtered_noise = sanitize_exam_paper(exam_input, min_length=min_char_limit)
+            
+        if not extracted_sentences:
+            st.error("❌ 找不到符合字數門檻的有效句子，請嘗試降低採樣字數門檻！")
         else:
-            with st.spinner("正在進行文本降噪、結構切割與深度特徵提取..."):
-                # 執行進階清洗
-                extracted_sentences, filtered_noise = sanitize_exam_paper(exam_input, min_length=min_char_limit)
+            st.success(f"✅ 成功從考題中過濾雜訊，擷取出 **{len(extracted_sentences)}** 個具代表性的有效試題語句！")
+            
+            res_df = run_batch_analysis(extracted_sentences, nlp, model, current_term_set)
+            st.divider()
+            
+            display_df, overall_score, total_chars, avg_mdd = render_overall_summary(res_df)
+            
+            if show_charts:
+                render_statistics_charts(display_df)
                 
-            if not extracted_sentences:
-                st.error("❌ 找不到符合字數門檻的有效句子，請嘗試降低採樣字數門檻！")
-            else:
-                st.success(f"✅ 成功從考題中過濾雜訊，擷取出 **{len(extracted_sentences)}** 個具代表性的有效試題語句！")
-                
-                # 執行批次分析
-                res_df = run_batch_analysis(extracted_sentences, nlp, model, current_term_set)
-                st.divider()
-                
-                # 採用 Top 30% 鑑別度加權渲染
-                display_df, overall_score, total_chars, avg_mdd = render_overall_summary(res_df)
-                
-                if show_charts:
-                    render_statistics_charts(display_df)
-                    
-                if show_table:
-                    st.markdown("### 📝 擷取之有效試題句段檢測明細")
-                    st.dataframe(display_df, use_container_width=True)
-                
-                # 展開顯示被過濾的雜訊，便於調校確認
-                with st.expander("👁️ 檢視被自動過濾的考題雜訊與指示句（點擊展開）"):
-                    st.write(f"共過濾掉 **{len(filtered_noise)}** 個雜訊片段：")
-                    st.json(filtered_noise[:30]) # 展示前30筆
-                
-                st.download_button(
-                    "📥 下載整份考題分析報告 CSV", 
-                    display_df.to_csv(index=False).encode("utf-8-sig"), 
-                    "考題分析報告.csv", 
-                    "text/csv"
-                )
+            if show_table:
+                st.markdown("### 📝 擷取之有效試題句段檢測明細")
+                st.dataframe(display_df, use_container_width=True)
+            
+            with st.expander("👁️ 檢視被自動過濾的考題雜訊與指示句（點擊展開）"):
+                st.write(f"共過濾掉 **{len(filtered_noise)}** 個雜訊片段：")
+                st.json(filtered_noise[:30])
+            
+            st.download_button(
+                "📥 下載整份考題分析報告 CSV", 
+                display_df.to_csv(index=False).encode("utf-8-sig"), 
+                "考題分析報告.csv", 
+                "text/csv"
+            )
