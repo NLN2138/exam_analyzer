@@ -362,7 +362,7 @@ def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, 
     return display_df, avg_score, total_chars, avg_mdd
 
 def render_statistics_charts(df: pd.DataFrame):
-    st.markdown("### 📊 批次分析統計圖表")
+    st.markdown("### 📊 多句分析統計圖表")
     col1, col2, col3 = st.columns(3)
     
     grade_counts = df["預估適用年級"].value_counts().reset_index()
@@ -478,7 +478,7 @@ with tab1:
                 }, use_container_width=True)
 
             if show_charts:
-                st.subheader("📊 單句視覺化圖表")
+                st.subheader("📊 單句分析統計圖表")
                 col_chart1, col_chart2 = st.columns(2)
                 
                 fig_mdd_gauge = go.Figure(go.Indicator(
