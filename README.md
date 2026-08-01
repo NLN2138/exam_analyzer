@@ -1,5 +1,4 @@
-```markdown
-# 📚 Taiwan K-6 Exam Question Sentence Difficulty Assessment System
+# 📚 Taiwan K-6 Exam Question Sentence Difficulty Assessment System (Prototype)
 
 An NLP and Machine Learning powered web application built with **Streamlit** to analyze and evaluate the difficulty level of Taiwan K-6 (elementary school) exam question sentences. 
 
@@ -45,8 +44,6 @@ The system leverages **spaCy** for Natural Language Processing, calculates **Mea
 ├── requirements.txt            # Python dependencies and spaCy model URL
 ├── mdd_baseline_model.pkl      # Optional pretrained ML model file
 └── README.md                   # Project documentation
-
-```
 
 ---
 
