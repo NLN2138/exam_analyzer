@@ -116,15 +116,7 @@ CONNECTORS = {
     "條件複句": [r"如果.*就", r"若.*則", r"只要.*就", r"只有.*才", r"除非"]
 }
 
-# 試題低難度常見指示詞/結構黑名單 (專門掃除拉低難度的指示雜訊)
-INSTRUCTION_PATTERNS = [
-    r'請[畫劃選填寫看算選]看', r'下列[何者|敘述]', r'正確的[打畫]', r'填入[適當|正確]',
-    r'回答[下列|以下]問題', r'選出[一個|正確]', r'第.*題', r'每題.*分', r'共.*分',
-    r'閱讀測驗', r'一、', r'二、', r'三、', r'四、', r'五、', r'六、', r'七、', r'八、',
-    r'看圖[回答|填]', r'勾選', r'連連看', r'圈圈看'
-]
-
-# 清理語法
+# 試題低難度常見指示詞/結構黑名單
 INSTRUCTION_PATTERNS = [
     r'請[畫劃選填寫看算選]看', r'下列[何者|敘述]', r'正確的[打畫]', r'填入[適當|正確]',
     r'回答[下列|以下]問題', r'選出[一個|正確]', r'第.*題', r'每題.*分', r'共.*分',
@@ -141,7 +133,7 @@ DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
 雖然這道數學題看起來非常複雜，但是只要畫圖仔細思考，就能找到答案。
 閱讀課外讀物不但能幫助我們認識世界，而且能豐富我們的想像力。
 在進行科學探究時，只有嚴格控制所有的實驗變因，才能確保最終數據的準確性。
-面對團隊合作的意见分歧，我們與其互相爭論誰的點子最好，不如冷靜下來尋找共識。
+面對團隊合作的意見分歧，我們與其互相爭論誰的點子最好，不如冷靜下來尋找共識。
 現代民主國家設立了權力分立的憲政體制，以免少數掌權者濫用職權而侵害人民的基本權益。
 藝術家嘗試運用跨領域的數位互動多媒體視覺效果與傳統水墨繪畫技法進行深度融合，進而在充滿未來感的展覽空間中營造出一種能夠誘導觀者進行深刻自我審視與哲學反思的沈浸式藝術體驗。
 為了有效緩解因城市化進程迅速推進與車輛持有量暴增所帶來的市中心交通癱瘓與空氣品質惡化問題，市政府決定籌措巨額預算全面建構以軌道運輸為骨幹且低碳環保的大眾運輸系統。
@@ -149,8 +141,7 @@ DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
 基於現象學還原論針對主體間性所提出的解構性思維，學者們試圖透過重新建構個體在意識流演變過程中所經驗到的時空感知經驗，來回應當代存在主義哲學在面臨數位科技虛擬化浪潮時所遭遇到的本體論危機與價值轉向議題。
 """
 
-# 🌟 新增：整份考題預設範例 (含題號、配分、低年級指示句、選項與長題幹混合)
-DEFAULT_EXAM_PAPER = """臺北市立國民中學 113 學年度第一學期 綜合學科 期末定期評量試卷
+DEFAULT_EXAM_PAPER = """臺北市立OO國民中學 113 學年度第一學期 綜合學科 期末定期評量試卷
 班級：八年級 ___班  姓名：_________  座號：___ (每題4分，共100分)
 
 一、 基礎題（請選出一個最適當的答案，並在答案卡上填塗）
@@ -208,43 +199,31 @@ def load_difficulty_model():
 # 3. 試題清洗與拆分引擎 (智慧降噪)
 # ==========================================
 def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str], List[str]]:
-    """
-    進階考題降噪引擎：過濾題目結構雜訊、指令句、選項，保留具代表性的題幹與閱讀文本。
-    回傳：(有效語句列表, 被過濾的雜訊列表)
-    """
-    # 1. 移除配分、大題標號說明、括號填空
     cleaned = re.sub(r'[(（][^()（）]*每[題字格分].*?[)）]', '', raw_text)
     cleaned = re.sub(r'[一二三四五六七八九十]+\s*[\u4e00-\u9fa5]+[：:]', '', cleaned)
     cleaned = re.sub(r'^\s*[\d\w]+\s*[\.、．]', '', cleaned, flags=re.MULTILINE)
     cleaned = re.sub(r'[↓｜|]', '', cleaned)
-    cleaned = re.sub(r'\([ 0-9A-Za-z\s]*\)|（[ 0-9A-Za-z\s]*）', '', cleaned) # 清除填空括號 ( )
+    cleaned = re.sub(r'\([ 0-9A-Za-z\s]*\)|（[ 0-9A-Za-z\s]*）', '', cleaned)
     
-    # 2. 依據終止符號與換行切割
     raw_sentences = re.split(r'[\n。！？!?]', cleaned)
-    
     valid_sentences = []
     filtered_out = []
     
     for s in raw_sentences:
         s_strip = s.strip()
-        # 清除剩餘的標號前綴
         s_strip = re.sub(r'^\s*\d+\s*', '', s_strip)
-        
         if not s_strip:
             continue
             
-        # 3. 字數門檻檢查
         if len(s_strip) < min_length:
             filtered_out.append(f"[過短] {s_strip}")
             continue
             
-        # 4. 指令句與題型標頭過濾
         is_instruction = any(re.search(pat, s_strip) for pat in INSTRUCTION_PATTERNS)
         if is_instruction and len(s_strip) < 28:
             filtered_out.append(f"[指令句] {s_strip}")
             continue
             
-        # 5. 選項式短問答過濾
         if re.search(r'^(選項|答案|選擇|填空|改錯字|配對)', s_strip):
             filtered_out.append(f"[結構標籤] {s_strip}")
             continue
@@ -426,13 +405,74 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
     return pd.DataFrame(results)
 
 # ==========================================
-# 5. 視覺化統計與整體試卷加權 UI
+# 5. 視覺化繪圖函數 (含 TAB 1 單句與 TAB 3 加權)
 # ==========================================
+def render_single_sentence_charts(features: Dict[str, Any], raw_score: float):
+    """
+    單句分析專屬視覺化：難度積分儀表板與特徵強弱雷達圖
+    """
+    st.markdown("### 📊 單句難度特徵分析儀表板")
+    c1, c2 = st.columns([1, 1])
+    
+    with c1:
+        fig_gauge = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = min(12.0, max(1.0, raw_score)),
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            title = {'text': "難度數值落點 (1-12年級)", 'font': {'size': 16}},
+            gauge = {
+                'axis': {'range': [1, 12], 'tickwidth': 1, 'tickcolor': "darkblue"},
+                'bar': {'color': "#2A648E"},
+                'bgcolor': "white",
+                'borderwidth': 2,
+                'bordercolor': "gray",
+                'steps': [
+                    {'range': [1, 3], 'color': '#E8F5E9'},   # 國小低
+                    {'range': [3, 5], 'color': '#C8E6C9'},   # 國小中
+                    {'range': [5, 7], 'color': '#FFF9C4'},   # 國小高
+                    {'range': [7, 9.5], 'color': '#FFE0B2'}, # 國中
+                    {'range': [9.5, 12], 'color': '#FFCDD2'} # 高中
+                ],
+            }
+        ))
+        fig_gauge.update_layout(height=260, margin=dict(l=20, r=20, t=40, b=20))
+        st.plotly_chart(fig_gauge, use_container_width=True)
+
+    with c2:
+        categories = ['字數長度', 'MDD依存距離', '名詞密度', '學科術語數']
+        
+        val_len = min(100, (features['char_count'] / 100) * 100)
+        val_mdd = min(100, (features['mdd'] / 6.0) * 100)
+        val_noun = min(100, features['noun_ratio'] * 200)
+        val_term = min(100, (features['vocab_depth'] / 4) * 100)
+        
+        values = [val_len, val_mdd, val_noun, val_term]
+        
+        fig_radar = go.Figure()
+        fig_radar.add_trace(go.Scatterpolar(
+            r=values,
+            theta=categories,
+            fill='toself',
+            name='此單句特徵',
+            line_color='#1E88E5'
+        ))
+        fig_radar.update_layout(
+            polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+            showlegend=False,
+            height=260,
+            title={'text': "特徵強度多維雷達圖", 'font': {'size': 16}},
+            margin=dict(l=40, r=40, t=40, b=20)
+        )
+        st.plotly_chart(fig_radar, use_container_width=True)
+
 def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, float]:
+    """
+    🌟 核心調整：改採前 50% 最具鑑別度的語句 (P50 中位數以上) 作為整份考卷難度加權
+    """
     scores = df["分數_hidden"].values
-    if len(scores) >= 5:
-        top_30_cutoff = np.percentile(scores, 70)
-        hard_scores = [s for s in scores if s >= top_30_cutoff]
+    if len(scores) >= 4:
+        top_50_cutoff = np.percentile(scores, 50)
+        hard_scores = [s for s in scores if s >= top_50_cutoff]
         overall_score = float(np.mean(hard_scores))
     else:
         overall_score = float(np.mean(scores))
@@ -440,14 +480,14 @@ def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, 
     overall_grade_str = map_score_to_grade_str(overall_score)
     total_chars = int(df["總字數"].sum())
     
-    if len(df) >= 5:
-        top_mdd_cutoff = np.percentile(df["MDD數值"].values, 70)
+    if len(df) >= 4:
+        top_mdd_cutoff = np.percentile(df["MDD數值"].values, 50)
         avg_mdd = df[df["MDD數值"] >= top_mdd_cutoff]["MDD數值"].mean()
     else:
         avg_mdd = df["MDD數值"].mean()
     
     st.markdown("### 🌟 整體考卷深度評估總覽")
-    st.caption("💡 **評估加權機制**：考卷難度由 **前 30% 最具鑑別度的核心題幹/文章** 決定（已排除說明與簡單指令雜訊）。")
+    st.caption("💡 **評估加權機制**：考卷難度採 **前 50% 最具鑑別度的核心語句/長文** 進行加權計算（已過濾無意義結構與指示雜訊）。")
     
     c1, c2, c3 = st.columns(3)
     c1.metric("🎯 考卷綜合預估年級", overall_grade_str)
@@ -553,6 +593,10 @@ with tab1:
             cols[1].metric("📏 總字數", f"{features['char_count']} 字")
             cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}")
             cols[3].metric("🔗 複句結構", features["clause_types"])
+            
+            # 單句視覺化圖表
+            if show_charts:
+                render_single_sentence_charts(features, predicted_raw_score)
                 
             if show_table:
                 st.subheader("📋 試題特徵明細")
@@ -585,10 +629,10 @@ with tab2:
                 if show_charts: render_statistics_charts(display_df)
                 if show_table: st.dataframe(display_df, use_container_width=True)
 
-# --- TAB 3: 整份考題分析 (智慧降噪與 Top 30% 鑑別度加權) ---
+# --- TAB 3: 整份考題分析 (智慧降噪與 Top 50% 鑑別度加權) ---
 with tab3:
     st.markdown("### 🧹 考題自動雜訊過濾與深度檢測")
-    st.info("💡 **全卷檢測防稀釋原理**：\n1. **智慧降噪**：自動過濾「請回答下列問題」、「選出正確的...」等指示句、大題標頭與括號，避免低年級指示句拉低難度。\n2. **Top 30% 鑑別度加權**：依據測驗學原理，採考卷中最具鑑別度的前 30% 高難度語句決定整份考卷適用年級。")
+    st.info("💡 **全卷檢測防稀釋原理**：\n1. **智慧降噪**：自動過濾「請回答下列問題」、「選出正確的...」等指示句、大題標頭與括號，避免無意義短句拉低難度。\n2. **Top 50% 鑑別度加權**：採考卷中最具鑑別度的前 50% 核心語句決定整份考卷適用年級。")
     
     col_param1, col_param2 = st.columns(2)
     with col_param1:
