@@ -147,6 +147,22 @@ CONNECTORS = {
 }
 
 # ==========================================
+# 0.8 預設題庫常數定義 (無輸入時啟動)
+# ==========================================
+DEFAULT_SINGLE_Q = "樹上的蘋果又紅又大，看起來非常好吃。"
+
+DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
+放學回到家，我會先把手洗乾淨，然後才開始寫作業。
+如果明天早上沒有下雨，我們就一起去公園騎腳踏車。
+因為他每天都很認真練習書法，所以在這次的比賽中得到了第一名。
+雖然這道數學題看起來非常複雜，但是只要畫圖仔細思考，就能找到答案。
+閱讀課外讀物不但能幫助我們認識世界，而且能豐富我們的想像力。
+在進行科學探究時，只有嚴格控制所有的實驗變因，才能確保最終數據的準確性。
+面對團隊合作的意見分歧，我們與其互相爭論誰的點子最好，不如冷靜下來尋找共識。
+現代民主國家設立了權力分立的憲政體制，以免少數掌權者濫用職權而侵害人民的基本權益。"""
+
+
+# ==========================================
 # 1. 頁面基本設定
 # ==========================================
 st.set_page_config(
@@ -380,87 +396,101 @@ tab1, tab2 = st.tabs(["✍️ 單題檢測與複句分析", "📋 批次多題�
 
 # --- TAB 1: 單題檢測 ---
 with tab1:
-    # ✨ 這裡加入了 placeholder 範例文字
     question_text = st.text_area(
         "題目文字", 
         height=130, 
-        placeholder="請輸入單一試題...\n\n舉例：\n請問在光合作用中，植物主要吸收哪一種氣體來製造養分？ (A) 氧氣 (B) 二氧化碳 (C) 氮氣 (D) 一氧化碳"
+        placeholder="請輸入單一試題...\n\n若未輸入內容直接點選分析，將自動載入預設範例題。"
     )
 
     if st.button("🚀 開始檢測單題", type="primary"):
-        if not question_text.strip():
-            st.warning("請先輸入題目文字！")
-        else:
-            with st.spinner("分析中..."):
-                doc = nlp(question_text)
-                features = extract_features_from_doc(doc, current_term_set)
-                predicted_grade_str, predicted_raw_score = predict_grade(features, model)
-                
-                st.divider()
-                cols = st.columns(4)
-                cols[0].metric("🎯 預估年級", predicted_grade_str)
-                cols[1].metric("📏 總字數", f"{features['char_count']} 字")
-                cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}")
-                cols[3].metric("🔗 複句結構", features["clause_types"])
-                    
-                if show_table:
-                    st.subheader("📋 試題特徵明細")
-                    st.dataframe({
-                        "特徵名稱": ["總詞數", "名詞比例", "動詞比例", "該科進階術語計數"],
-                        "數值": [
-                            features['word_count'], 
-                            f"{features['noun_ratio']:.1%}", 
-                            f"{features['verb_ratio']:.1%}", 
-                            f"{features['vocab_depth']} 個"
-                        ]
-                    }, use_container_width=True)
+        target_text = question_text.strip()
+        
+        # ✨ 若沒有填寫任何東西，套用預設的單題範例
+        if not target_text:
+            target_text = DEFAULT_SINGLE_Q
+            st.info("💡 您未輸入內容，已自動載入**預設單題**進行分析。")
 
-                if show_charts:
-                    st.subheader("📊 單題視覺化圖表")
-                    col_chart1, col_chart2 = st.columns(2)
-                    
-                    fig_mdd_gauge = go.Figure(go.Indicator(
-                        mode = "gauge+number",
-                        value = features['mdd'],
-                        domain = {'x': [0, 1], 'y': [0, 1]},
-                        title = {'text': "MDD 依存距離指標<br><span style='font-size:0.8em;color:gray'>數值越高代表句法越複雜崎嶇</span>"},
-                        gauge = {
-                            'axis': {'range': [None, 6]},
-                            'bar': {'color': "#1f77b4"},
-                            'steps' : [
-                                {'range': [0, 2.6], 'color': "#d9f0d3"},    
-                                {'range': [2.6, 4.0], 'color': "#fff2ae"},  
-                                {'range': [4.0, 6.0], 'color': "#fbb4ae"}   
-                            ],
-                        }
-                    ))
-                    col_chart1.plotly_chart(fig_mdd_gauge, use_container_width=True)
-                    
-                    other_ratio = max(0, 1.0 - features['noun_ratio'] - features['verb_ratio'])
-                    df_pos = pd.DataFrame({
-                        "詞性": ["名詞與專有名詞", "動詞", "其他附屬詞"],
-                        "比例": [features['noun_ratio'], features['verb_ratio'], other_ratio]
-                    })
-                    fig_pos = px.pie(df_pos, names="詞性", values="比例", hole=0.4, 
-                                     title="句子詞性結構占比", 
-                                     color_discrete_sequence=px.colors.qualitative.Pastel)
-                    fig_pos.update_traces(textposition='inside', textinfo='percent+label')
-                    fig_pos.update_layout(showlegend=False)
-                    col_chart2.plotly_chart(fig_pos, use_container_width=True)
+        with st.spinner("分析中..."):
+            doc = nlp(target_text)
+            features = extract_features_from_doc(doc, current_term_set)
+            predicted_grade_str, predicted_raw_score = predict_grade(features, model)
+            
+            # 當使用者沒有填東西時，在畫面上秀出預設分析的句子，避免突兀
+            if target_text == DEFAULT_SINGLE_Q and not question_text.strip():
+                st.markdown(f"> **分析內容：** {target_text}")
+                
+            st.divider()
+            cols = st.columns(4)
+            cols[0].metric("🎯 預估年級", predicted_grade_str)
+            cols[1].metric("📏 總字數", f"{features['char_count']} 字")
+            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}")
+            cols[3].metric("🔗 複句結構", features["clause_types"])
+                
+            if show_table:
+                st.subheader("📋 試題特徵明細")
+                st.dataframe({
+                    "特徵名稱": ["總詞數", "名詞比例", "動詞比例", "該科進階術語計數"],
+                    "數值": [
+                        features['word_count'], 
+                        f"{features['noun_ratio']:.1%}", 
+                        f"{features['verb_ratio']:.1%}", 
+                        f"{features['vocab_depth']} 個"
+                    ]
+                }, use_container_width=True)
+
+            if show_charts:
+                st.subheader("📊 單題視覺化圖表")
+                col_chart1, col_chart2 = st.columns(2)
+                
+                fig_mdd_gauge = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = features['mdd'],
+                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    title = {'text': "MDD 依存距離指標<br><span style='font-size:0.8em;color:gray'>數值越高代表句法越複雜崎嶇</span>"},
+                    gauge = {
+                        'axis': {'range': [None, 6]},
+                        'bar': {'color': "#1f77b4"},
+                        'steps' : [
+                            {'range': [0, 2.6], 'color': "#d9f0d3"},    
+                            {'range': [2.6, 4.0], 'color': "#fff2ae"},  
+                            {'range': [4.0, 6.0], 'color': "#fbb4ae"}   
+                        ],
+                    }
+                ))
+                col_chart1.plotly_chart(fig_mdd_gauge, use_container_width=True)
+                
+                other_ratio = max(0, 1.0 - features['noun_ratio'] - features['verb_ratio'])
+                df_pos = pd.DataFrame({
+                    "詞性": ["名詞與專有名詞", "動詞", "其他附屬詞"],
+                    "比例": [features['noun_ratio'], features['verb_ratio'], other_ratio]
+                })
+                fig_pos = px.pie(df_pos, names="詞性", values="比例", hole=0.4, 
+                                 title="句子詞性結構占比", 
+                                 color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig_pos.update_traces(textposition='inside', textinfo='percent+label')
+                fig_pos.update_layout(showlegend=False)
+                col_chart2.plotly_chart(fig_pos, use_container_width=True)
 
 # --- TAB 2: 批次查詢與統計儀表板 ---
 with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
     if batch_mode == "📋 貼上多行文字":
-        # ✨ 這裡加入了 placeholder 範例文字
         batch_text = st.text_area(
             "每行一題：", 
             height=250,
-            placeholder="請貼上多行試題（每行一題）...\n\n舉例：\n請問在光合作用中，植物主要吸收哪一種氣體？\n若 x + 3 = 5，則 x 的值為多少？\n下列何者為台灣最高的山脈？"
+            placeholder="請貼上多行試題（每行一題）...\n\n若未輸入內容直接點選分析，將自動載入預設的多題題庫。"
         )
         if st.button("⚡ 開始批次分析", type="primary"):
-            q_list = [line.strip() for line in batch_text.split("\n") if line.strip()]
+            target_batch_text = batch_text.strip()
+            
+            # ✨ 若沒有填寫任何東西，套用預設的多行範例
+            if not target_batch_text:
+                target_batch_text = DEFAULT_BATCH_Q
+                st.info("💡 您未輸入內容，已自動載入**預設題庫**進行分析。")
+            
+            q_list = [line.strip() for line in target_batch_text.split("\n") if line.strip()]
+            
             if q_list:
                 res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
                 st.divider()
