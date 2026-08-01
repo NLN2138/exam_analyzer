@@ -183,12 +183,11 @@ def analyze_clause_types(doc: spacy.tokens.Doc) -> str:
     if any(kw in text for kw in ADVANCED_KEYWORDS):
         detected_types.append("進階論述句")
         
-    # [更新] 改用 Regex 掃描匹配句式
     for clause_type, patterns in CONNECTORS.items():
         for pattern in patterns:
             if re.search(pattern, text):
                 detected_types.append(clause_type)
-                break  # 該類型一旦配對成功，就換下一個句式檢查
+                break 
             
     if not detected_types:
         dep_labels = {token.dep_ for token in doc}
@@ -254,7 +253,6 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     if features["noun_ratio"] < 0.20: score -= 0.5
     elif features["noun_ratio"] > 0.30: score += 0.5
     
-    # [更新] 將新版的進階邏輯句式加入加分條件
     complex_clauses = ["進階論述句", "目的複句", "選擇複句", "遞進複句", "推斷複句", "假轉複句", "取捨複句"]
     if any(c in features["clause_types"] for c in complex_clauses):
         score += 1.0
@@ -382,7 +380,12 @@ tab1, tab2 = st.tabs(["✍️ 單題檢測與複句分析", "📋 批次多題�
 
 # --- TAB 1: 單題檢測 ---
 with tab1:
-    question_text = st.text_area("題目文字", height=130, placeholder="請輸入試題...")
+    # ✨ 這裡加入了 placeholder 範例文字
+    question_text = st.text_area(
+        "題目文字", 
+        height=130, 
+        placeholder="請輸入單一試題...\n\n舉例：\n請問在光合作用中，植物主要吸收哪一種氣體來製造養分？ (A) 氧氣 (B) 二氧化碳 (C) 氮氣 (D) 一氧化碳"
+    )
 
     if st.button("🚀 開始檢測單題", type="primary"):
         if not question_text.strip():
@@ -450,7 +453,12 @@ with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
     if batch_mode == "📋 貼上多行文字":
-        batch_text = st.text_area("每行一題：", height=250)
+        # ✨ 這裡加入了 placeholder 範例文字
+        batch_text = st.text_area(
+            "每行一題：", 
+            height=250,
+            placeholder="請貼上多行試題（每行一題）...\n\n舉例：\n請問在光合作用中，植物主要吸收哪一種氣體？\n若 x + 3 = 5，則 x 的值為多少？\n下列何者為台灣最高的山脈？"
+        )
         if st.button("⚡ 開始批次分析", type="primary"):
             q_list = [line.strip() for line in batch_text.split("\n") if line.strip()]
             if q_list:
