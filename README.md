@@ -136,8 +136,7 @@ This project is licensed under the [MIT License](LICENSE).
 * **Plotly**: Copyright © Plotly Technologies Inc. (Licensed under MIT License).
 * **scikit-learn & joblib**: Copyright © 2007-2026 scikit-learn developers (Licensed under BSD 3-Clause).
 
-### Theoretical Frameworks & Curriculum References
-* **Taiwan 108 Curriculum Guidelines**: Ministry of Education, Taiwan (2018). *General Curriculum Guidelines for 12-Year Basic Education*.
+### Theoretical Frameworks
 * **Mean Dependency Distance (MDD)**: Liu, H. (2008). Dependency distance as a metric of language comprehension difficulty. *Journal of Cognitive Science*, *9*(2), 159–191.
 
 ```
