@@ -311,8 +311,10 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
     }
 
 def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[str, float]:
-    score = 3.0
+    # 🌟 1. 下修初始基準分 (從 3.0 下修至 1.5)
+    score = 1.5
     
+    # ML 模型輔助
     if ml_model is not None:
         try:
             df_features = pd.DataFrame([{
@@ -324,58 +326,70 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
             }])
             raw_pred = ml_model.predict(df_features)[0]
             if isinstance(raw_pred, (int, float)):
-                score = float(raw_pred)
+                score = float(raw_pred) * 0.85  # ML 模型預測值同步打 85 折
         except Exception:
             pass
 
+    # 🌟 2. 下修字數加成門檻
     char_len = features["char_count"]
-    if char_len <= 15: score -= 1.5
+    if char_len <= 15: score -= 1.0
     elif char_len <= 25: score -= 0.5
     elif 26 <= char_len <= 45: score += 0.5
-    elif 46 <= char_len <= 70: score += 1.5
-    elif 71 <= char_len <= 100: score += 2.5
-    elif char_len > 100: score += 4.0
+    elif 46 <= char_len <= 70: score += 1.0     # 原本 +1.5
+    elif 71 <= char_len <= 100: score += 1.5    # 原本 +2.5
+    elif char_len > 100: score += 2.5           # 原本 +4.0
     
+    # 🌟 3. 收斂 MDD 依存距離加分
     mdd = features["mdd"]
-    if mdd < 2.0: score -= 1.5
+    if mdd < 2.0: score -= 1.0                  # 原本 -1.5
     elif 2.0 <= mdd < 2.8: score -= 0.5
-    elif 3.5 <= mdd < 4.2: score += 1.0
-    elif 4.2 <= mdd < 5.0: score += 2.5
-    elif mdd >= 5.0: score += 4.0
+    elif 3.5 <= mdd < 4.2: score += 0.5         # 原本 +1.0
+    elif 4.2 <= mdd < 5.0: score += 1.2         # 原本 +2.5
+    elif mdd >= 5.0: score += 2.0               # 原本 +4.0
 
+    # 4. 名詞密度加成適度微調
     noun_r = features["noun_ratio"]
-    if noun_r < 0.20: score -= 1.0
-    elif 0.35 <= noun_r < 0.45: score += 1.0
-    elif noun_r >= 0.45: score += 2.0
+    if noun_r < 0.20: score -= 0.5
+    elif 0.35 <= noun_r < 0.45: score += 0.5
+    elif noun_r >= 0.45: score += 1.2           # 原本 +2.0
 
+    # 5. 複句結構
     complex_clauses = ["進階論述句", "目的複句", "選擇複句", "遞進複句", "推斷複句", "假轉複句", "取捨複句"]
     if any(c in features["clause_types"] for c in complex_clauses):
-        score += 1.5
+        score += 1.0                              # 原本 +1.5
 
+    # 🌟 6. 重設學科術語加分與保底門檻 (避免國中題被誤判為高中)
     v_depth = features["vocab_depth"]
-    if v_depth == 1: score += 1.0
-    elif v_depth == 2: score += 2.0
-    elif v_depth >= 3: score += 3.5
+    if v_depth == 1: score += 0.5
+    elif v_depth == 2: score += 1.0
+    elif v_depth >= 3: score += 2.0             # 原本 +3.5
     
-    if v_depth >= 3 and score < 8.5:
+    # 保底門檻修正：更高門檻才觸發高中
+    if v_depth >= 5 and score < 8.5:
         score = max(score, 8.5)
-    elif v_depth >= 2 and score < 6.5:
+    elif v_depth >= 3 and score < 6.5:
         score = max(score, 6.5)
+    elif v_depth >= 2 and score < 4.5:
+        score = max(score, 4.5)
 
+    # 7. 短句壓低
     if char_len < 20 and v_depth == 0 and "簡單句" in features["clause_types"]:
-        score = min(score, 3.5)
+        score = min(score, 2.5)
 
-    if score >= 9.5: grade_str = "10-12 年級 (高中或以上)"
-    elif score >= 7.0: grade_str = "7-9 年級 (國中)"
+    # 🌟 8. 提高各年級評定門檻 (使整體判定往低年級挪移)
+    if score >= 10.0: grade_str = "10-12 年級 (高中或以上)"   # 原本 9.5
+    elif score >= 7.5: grade_str = "7-9 年級 (國中)"          # 原本 7.0
     elif score >= 5.0: grade_str = "5-6 年級 (國小高年級)"
     elif score >= 3.0: grade_str = "3-4 年級 (國小中年級)"
     else: grade_str = "1-2 年級 (國小低年級)"
     
     return grade_str, score
 
+
 def map_score_to_grade_str(avg_score: float) -> str:
-    if avg_score >= 9.5: return "10-12 年級 (高中或以上)"
-    elif avg_score >= 7.0: return "7-9 年級 (國中)"
+    """ 考卷整體分數映射門檻同步下修校正 """
+    if avg_score >= 10.0: return "10-12 年級 (高中或以上)"
+    elif avg_score >= 7.5: return "7-9 年級 (國中)"
     elif avg_score >= 5.0: return "5-6 年級 (國小高年級)"
     elif avg_score >= 3.0: return "3-4 年級 (國小中年級)"
     else: return "1-2 年級 (國小低年級)"
