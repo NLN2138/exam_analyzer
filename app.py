@@ -12,7 +12,6 @@ from typing import List, Dict, Any, Optional, Tuple
 # 0. 靜態常數定義
 # ==========================================
 
-# 擴充進階論述與學術常規詞彙 (涵蓋邏輯、推論、學術動詞)
 ADVANCED_KEYWORDS = {
     "由於", "導致", "以致於", "即使", "仍", "除非", "無論", "若", 
     "除了...也", "透過", "以維持", "評估", "脈絡", "偏誤", "然而", 
@@ -24,7 +23,6 @@ ADVANCED_KEYWORDS = {
     "綜觀", "舉凡", "毋寧", "端賴", "悖論", "機制", "框架", "準則"
 }
 
-# 各學科專業詞彙
 SUBJECT_TERMS = {
     "國語文": {
         "修辭", "譬喻", "借代", "轉化", "擬人", "擬物", "誇飾", "排比", "層遞", "設問", 
@@ -44,7 +42,6 @@ SUBJECT_TERMS = {
         "神話", "傳說", "民間故事", "童話", "科幻", "武俠", "推理", "寓意", "絃外之音",
         "言外之意", "主觀", "客觀", "批判", "賞析", "鑑賞", "共鳴", "流派", "文學史"
     },
-    
     "數學": {
         "整數", "分數", "小數", "質數", "合數", "因數", "倍數", "公因數", "公倍數", 
         "最大公因數", "最小公倍數", "絕對值", "有理數", "無理數", "實數", "正數", "負數",
@@ -65,7 +62,6 @@ SUBJECT_TERMS = {
         "平均數", "中位數", "眾數", "全距", "四分位數", "盒狀圖", "標準差", "變異數",
         "機率", "事件", "樣本空間", "期望值", "排列", "組合", "樹狀圖", "相對次數"
     },
-    
     "社會": {
         "社會文化脈絡", "供給", "需求", "公義", "政治結構", "經濟條件", "環境影響", 
         "社會公平", "單一因果", "偏誤", "多元觀點", "效率", "憲政體制", "權力分立", 
@@ -77,7 +73,7 @@ SUBJECT_TERMS = {
         "市場機能", "看不見的手", "政府干預", "稅收", "社會福利", "少子化", "高齡化",
         "多元文化", "文化位階", "原住民", "新住民", "基本權利", "救濟", "民法", "刑法",
         "行政法", "無罪推定", "少年事件處理法", "契約", "侵權行為", "財產權", "智慧財產權",
-        "史前時代", "舊石器時代", "新石器時代", "金屬器時代", "原住民", "大航海時代",
+        "史前時代", "舊石器時代", "新石器時代", "金屬器時代", "大航海時代",
         "荷西時期", "鄭氏時期", "清領時期", "日治時期", "戰後時期", "解嚴", "戒嚴", 
         "民主化", "白色恐怖", "二二八事件", "朝代", "皇帝", "封建", "帝國", "殖民", 
         "條約", "不平等條約", "革命", "啟蒙運動", "文藝復興", "工業革命", "冷戰", 
@@ -86,7 +82,6 @@ SUBJECT_TERMS = {
         "等高線", "地形", "高山", "丘陵", "台地", "平原", "盆地", "火山", "海岸",
         "氣候", "天氣", "季風", "洋流", "溫室效應", "氣壓", "降水", "氣溫", "水文"
     },
-    
     "自然": {
         "細胞", "細胞膜", "細胞壁", "細胞質", "細胞核", "葉綠體", "粒線體", "液胞",
         "光合作用", "呼吸作用", "酵素", "擴散作用", "滲透作用", "生物體", "組織", "器官",
@@ -109,7 +104,6 @@ SUBJECT_TERMS = {
 }
 ALL_SUBJECT_TERMS = set().union(*SUBJECT_TERMS.values())
 
-# 複句特徵正則表達式
 CONNECTORS = {
     "因果複句": [r"因為.*所以", r"由於", r"導致", r"以致於", r"因此", r"爰此"],
     "假轉複句": [r"雖然.*但", r"儘管", r"然而", r"卻", r"縱使", r"固然"],
@@ -121,7 +115,6 @@ CONNECTORS = {
     "條件複句": [r"如果.*就", r"若.*則", r"只要.*就", r"只有.*才", r"除非"]
 }
 
-# 預設單句與批次測試例句
 DEFAULT_SINGLE_Q = "樹上的蘋果又紅又大，看起來非常好吃。"
 
 DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
@@ -167,7 +160,37 @@ def load_difficulty_model():
     return None
 
 # ==========================================
-# 3. 難度特徵運算邏輯 (路線 A 多維度補償)
+# 3. 試題清洗與拆分引擎 (全新增強功能)
+# ==========================================
+def sanitize_exam_paper(raw_text: str, min_length: int = 12) -> List[str]:
+    """
+    清洗完整考題，自動去除題目結構雜訊，擷取有代表性的長句
+    """
+    # 1. 移除常見的配分與大題標號說明
+    cleaned = re.sub(r'[(（][^()（）]*每[題字格分].*?[)）]', '', raw_text)
+    cleaned = re.sub(r'[一二三四五六七八九十]+\s*[\u4e00-\u9fa5]+[：:]', '', cleaned)
+    cleaned = re.sub(r'^\s*[\d\w]+\s*[\.、．]', '', cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r'[↓｜|]', '', cleaned)
+    
+    # 2. 依據中文常見終止符號與換行進行切割
+    raw_sentences = re.split(r'[\n。！？!?]', cleaned)
+    
+    valid_sentences = []
+    for s in raw_sentences:
+        s_strip = s.strip()
+        # 清除剩餘的標號前綴
+        s_strip = re.sub(r'^\s*\d+\s*', '', s_strip)
+        
+        # 3. 濾鏡規則：字數需達到門檻，且非純注音/選項/標點組合
+        if len(s_strip) >= min_length:
+            # 排除選項式的短問答或無意義結構
+            if not re.search(r'^(選項|答案|選擇|填空|改錯字)', s_strip):
+                valid_sentences.append(s_strip)
+                
+    return valid_sentences
+
+# ==========================================
+# 4. 難度特徵運算邏輯
 # ==========================================
 def analyze_clause_types(doc: spacy.tokens.Doc) -> str:
     text = doc.text
@@ -207,7 +230,6 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
     noun_ratio = nouns_count / word_count if word_count > 0 else 0.0
     verb_ratio = verbs_count / word_count if word_count > 0 else 0.0
     
-    # 💡 排除標點與空白符號後計算基準 MDD
     valid_tokens = [t for t in doc if t.pos_ not in ("PUNCT", "SPACE")]
     
     if valid_tokens:
@@ -221,22 +243,15 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
     else:
         base_mdd = 0.0
     
-    # 🌟 路線 A 升級：多維度 MDD 校正演算法
     raw_text = doc.text
     sub_clauses = re.split(r'[，。；]', raw_text)
     max_clause_len = max(len(c) for c in sub_clauses) if sub_clauses else char_count
     clause_delimiters = raw_text.count("，") + raw_text.count("；")
     
-    # 1. 多分句標點補償
     punct_factor = 0.10 * clause_delimiters
-    
-    # 2. 單一分句連綿超長補償 (針對少標點的超長嵌入句)
     long_chunk_factor = max(0.0, (max_clause_len - 35) / 10) * 0.15 if max_clause_len > 35 else 0.0
-    
-    # 3. 名詞高密度修正 (修正複合名詞距離為 1 導致平均 MDD 被拉低的情形)
     noun_density_factor = (noun_ratio - 0.35) * 1.5 if noun_ratio > 0.35 else 0.0
     
-    # 總補償係數
     total_compensation = 1.0 + punct_factor + long_chunk_factor + noun_density_factor
     adjusted_mdd = base_mdd * total_compensation if char_count >= 40 else base_mdd
 
@@ -247,13 +262,13 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
         "noun_ratio": noun_ratio,
         "verb_ratio": verb_ratio,
         "base_mdd": base_mdd,
-        "mdd": adjusted_mdd,  # 系統統一傳遞校正後的 MDD
+        "mdd": adjusted_mdd,
         "clause_types": analyze_clause_types(doc),
         "vocab_depth": calculate_vocab_depth(doc, term_set)
     }
 
 def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[str, float]:
-    score = 3.0  # 預設國小中年級基準分
+    score = 3.0
     
     if ml_model is not None:
         try:
@@ -270,35 +285,29 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
         except Exception:
             pass
 
-    # 1. 總字數加權
     if features["char_count"] <= 20: score -= 1.0
     elif features["char_count"] >= 35: score += 1.0
     elif features["char_count"] >= 55: score += 2.0
     elif features["char_count"] >= 75: score += 3.0
     elif features["char_count"] >= 90: score += 4.0
     
-    # 2. 校正後 MDD 距離加權
     if features["mdd"] < 2.5: score -= 1.0
     elif 3.0 <= features["mdd"] < 3.8: score += 1.0
     elif 3.8 <= features["mdd"] < 4.8: score += 2.5
     elif features["mdd"] >= 4.8: score += 4.5
     
-    # 3. 名詞密度加權
     if features["noun_ratio"] < 0.20: score -= 0.5
     elif features["noun_ratio"] > 0.35: score += 1.0
     elif features["noun_ratio"] > 0.45: score += 2.0
     
-    # 4. 複句結構加權
     complex_clauses = ["進階論述句", "目的複句", "選擇複句", "遞進複句", "推斷複句", "假轉複句", "取捨複句"]
     if any(c in features["clause_types"] for c in complex_clauses):
         score += 1.5
         
-    # 5. 進階/學術詞彙加權
     if features["vocab_depth"] >= 1: score += 1.5
     if features["vocab_depth"] >= 3: score += 1.5
     if features["vocab_depth"] >= 5: score += 2.0
 
-    # 💡 中小學與高中（或以上）年級判定卡尺
     if score >= 9.5:
         grade_str = "10-12 年級 (高中或以上)"
     elif score >= 7.0:
@@ -343,7 +352,7 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
     return pd.DataFrame(results)
 
 # ==========================================
-# 4. 視覺化統計與總覽 UI
+# 5. 視覺化統計 UI
 # ==========================================
 def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, float]:
     avg_score = df["分數_hidden"].mean()
@@ -400,7 +409,7 @@ def render_statistics_charts(df: pd.DataFrame):
     col3.plotly_chart(fig_mdd, use_container_width=True)
 
 # ==========================================
-# 5. 前端介面
+# 6. 前端介面與頁籤規劃
 # ==========================================
 with st.sidebar:
     st.header("⚙️ 系統狀態")
@@ -426,10 +435,11 @@ with st.sidebar:
     else:
         current_term_set = SUBJECT_TERMS.get(subject, set())
 
-st.title("📚 台灣中小學與高中試題難度檢測系統（雛型）")
+st.title("📚 台灣中小學與高中試題難度檢測系統")
 st.caption(f"目前分析學科模式：**{subject}** (涵蓋國小低年級至高中或以上程度)")
 
-tab1, tab2 = st.tabs(["✍️ 單句分析", "📋 多句分析"])
+# 🌟 新增第三個頁籤：整份考題分析
+tab1, tab2, tab3 = st.tabs(["✍️ 單句分析", "📋 多句分析", "📄 整份考題分析 (自動降噪)"])
 
 # --- TAB 1: 單句檢測 ---
 with tab1:
@@ -441,7 +451,6 @@ with tab1:
 
     if st.button("🚀 開始檢測單句", type="primary"):
         target_text = question_text.strip()
-        
         if not target_text:
             target_text = DEFAULT_SINGLE_Q
             st.info("💡 您未輸入內容，已自動載入**預設單句**進行分析。")
@@ -451,22 +460,17 @@ with tab1:
             features = extract_features_from_doc(doc, current_term_set)
             predicted_grade_str, predicted_raw_score = predict_grade(features, model)
             
-            if target_text == DEFAULT_SINGLE_Q and not question_text.strip():
-                st.markdown(f"> **分析內容：** {target_text}")
-                
             st.divider()
             cols = st.columns(4)
             cols[0].metric("🎯 預估年級", predicted_grade_str)
             cols[1].metric("📏 總字數", f"{features['char_count']} 字")
-            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", 
-                           delta=f"基礎: {features['base_mdd']:.2f}" if features['mdd'] != features['base_mdd'] else None,
-                           help="含長難句與名詞稀釋雙補償" if features['mdd'] != features['base_mdd'] else "未觸發長句補償")
+            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}")
             cols[3].metric("🔗 複句結構", features["clause_types"])
                 
             if show_table:
                 st.subheader("📋 試題特徵明細")
                 st.dataframe({
-                    "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "原始 MDD (無標點)", "修正 MDD (路線 A 補償)"],
+                    "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "原始 MDD", "修正 MDD"],
                     "數值": [
                         features['word_count'], 
                         f"{features['noun_ratio']:.1%}", 
@@ -477,104 +481,68 @@ with tab1:
                     ]
                 }, use_container_width=True)
 
-            if show_charts:
-                st.subheader("📊 單句分析統計圖表")
-                col_chart1, col_chart2 = st.columns(2)
-                
-                fig_mdd_gauge = go.Figure(go.Indicator(
-                    mode = "gauge+number",
-                    value = features['mdd'],
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "MDD 依存距離指標<br><span style='font-size:0.8em;color:gray'>數值 ≥ 4.5 屬高中或以上長難句</span>"},
-                    gauge = {
-                        'axis': {'range': [None, 10.0]},
-                        'bar': {'color': "#1f77b4"},
-                        'steps' : [
-                            {'range': [0, 3.0], 'color': "#d9f0d3"},    
-                            {'range': [3.0, 4.5], 'color': "#fff2ae"},  
-                            {'range': [4.5, 10.0], 'color': "#fbb4ae"}   
-                        ],
-                    }
-                ))
-                col_chart1.plotly_chart(fig_mdd_gauge, use_container_width=True)
-                
-                other_ratio = max(0, 1.0 - features['noun_ratio'] - features['verb_ratio'])
-                df_pos = pd.DataFrame({
-                    "詞性": ["名詞與專有名詞", "動詞", "其他附屬詞"],
-                    "比例": [features['noun_ratio'], features['verb_ratio'], other_ratio]
-                })
-                fig_pos = px.pie(df_pos, names="詞性", values="比例", hole=0.4, 
-                                 title="句子詞性結構占比", 
-                                 color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig_pos.update_traces(textposition='inside', textinfo='percent+label')
-                fig_pos.update_layout(showlegend=False)
-                col_chart2.plotly_chart(fig_pos, use_container_width=True)
-
-# --- TAB 2: 批次查詢與統計儀表板 ---
+# --- TAB 2: 批次查詢 ---
 with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
     if batch_mode == "📋 貼上多行文字":
-        placeholder_text = f"請貼上多行試題（每行一題）...\n\n若未輸入內容點選分析，將自動載入預設題庫：\n\n{DEFAULT_BATCH_Q}"
-        
-        batch_text = st.text_area(
-            "每行一題：", 
-            height=280,
-            placeholder=placeholder_text
-        )
+        batch_text = st.text_area("每行一題：", height=280, placeholder=f"請貼上多行試題...\n\n預設範例：\n{DEFAULT_BATCH_Q}")
         if st.button("⚡ 開始批次分析", type="primary"):
-            target_batch_text = batch_text.strip()
-            
-            if not target_batch_text:
-                target_batch_text = DEFAULT_BATCH_Q
-                st.info("💡 您未輸入內容，已自動載入**預設題庫**進行分析。")
-            
+            target_batch_text = batch_text.strip() or DEFAULT_BATCH_Q
             q_list = [line.strip() for line in target_batch_text.split("\n") if line.strip()]
             
             if q_list:
                 res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
+                st.divider()
+                display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df)
+                if show_charts: render_statistics_charts(display_df)
+                if show_table: st.dataframe(display_df, use_container_width=True)
+
+# --- TAB 3: 整份考題分析 (降噪與智慧篩選) ---
+with tab3:
+    st.markdown("### 🧹 考題自動雜訊過濾與深度檢測")
+    st.info("💡 **運作原理**：整份考題常包含題號、配分、填空符號與極短選項。本模式會自動過濾雜訊，僅採樣**字數足夠且具完整閱讀意義**的句段進行分析，避免評分被拉低。")
+    
+    col_param1, col_param2 = st.columns(2)
+    with col_param1:
+        min_char_limit = st.slider("📏 採樣句數最低字數門檻", min_value=8, max_value=30, value=14, step=2, help="小於此字數的非完整句或配分說明將被自動忽略。")
+    
+    raw_exam_paper = st.text_area(
+        "請貼上整份考題文字：",
+        height=320,
+        placeholder="請在此直接貼上完整的考題內文（包含題號、改錯字、閱讀測驗等混合內容）..."
+    )
+    
+    if st.button("🔍 雜訊過濾並開始分析考題", type="primary"):
+        exam_input = raw_exam_paper.strip()
+        if not exam_input:
+            st.warning("⚠️ 請輸入考題內容！")
+        else:
+            with st.spinner("正在進行文本降噪與智慧分割..."):
+                # 執行清洗
+                extracted_sentences = sanitize_exam_paper(exam_input, min_length=min_char_limit)
+                
+            if not extracted_sentences:
+                st.error("❌ 找不到符合字數門檻的有效句子，請嘗試降低採樣字數門檻！")
+            else:
+                st.success(f"✅ 成功從考題中過濾雜訊，並擷取出 **{len(extracted_sentences)}** 個代表性有效語句進行檢測！")
+                
+                # 執行批次分析
+                res_df = run_batch_analysis(extracted_sentences, nlp, model, current_term_set)
                 st.divider()
                 
                 display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df)
                 
                 if show_charts:
                     render_statistics_charts(display_df)
-                
+                    
                 if show_table:
-                    st.markdown("### 📝 詳細題目檢測報表")
+                    st.markdown("### 📝 擷取的有效試題句段檢測明細")
                     st.dataframe(display_df, use_container_width=True)
                 
-                st.download_button("📥 下載 CSV 報告", display_df.to_csv(index=False).encode("utf-8-sig"), "批次檢測報告.csv", "text/csv")
-            else:
-                st.warning("請貼上有效的題目內容！")
-                
-    else:
-        uploaded_file = st.file_uploader("請選擇 CSV 或 Excel 檔案", type=["csv", "xlsx"])
-        if uploaded_file:
-            try:
-                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
-                text_col = next((c for c in df.columns if str(c).strip().lower() in ["題目", "question", "text", "試題", "內容"]), None)
-                
-                if not text_col:
-                    st.error(f"❌ 找不到題目欄位！現有欄位：{', '.join(df.columns)}")
-                else:
-                    q_list = df[text_col].dropna().astype(str).str.strip()
-                    q_list = q_list[q_list != ""].tolist()
-                    
-                    st.info(f"成功擷取 {len(q_list)} 題，準備分析。")
-                    if st.button("⚡ 開始批次分析", type="primary"):
-                        res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
-                        st.divider()
-                        
-                        display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df)
-                        
-                        if show_charts:
-                            render_statistics_charts(display_df)
-                        
-                        if show_table:
-                            st.markdown("### 📝 詳細題目檢測報表")
-                            st.dataframe(display_df, use_container_width=True)
-                        
-                        st.download_button("📥 下載結果", display_df.to_csv(index=False).encode("utf-8-sig"), "檔案分析報告.csv", "text/csv")
-            except Exception as e:
-                st.error(f"讀取失敗：{e}")
+                st.download_button(
+                    "📥 下載整份考題分析報告 CSV", 
+                    display_df.to_csv(index=False).encode("utf-8-sig"), 
+                    "考題分析報告.csv", 
+                    "text/csv"
+                )
