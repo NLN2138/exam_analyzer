@@ -126,9 +126,19 @@ Open your browser at `http://localhost:8501` to view the application.
 
 ---
 
-## 📄 License
+## ⚖️ License & Acknowledgments
 
-Distributed under the MIT License. See `LICENSE` for more information.
+This project is licensed under the [MIT License](LICENSE).
+
+### Third-Party Libraries & Assets
+* **Streamlit**: Copyright © Snowflake Inc. (Licensed under Apache License 2.0).
+* **spaCy & `zh_core_web_sm`**: Copyright © Explosion AI GmbH (Licensed under MIT / CC BY-SA 4.0).
+* **Plotly**: Copyright © Plotly Technologies Inc. (Licensed under MIT License).
+* **scikit-learn & joblib**: Copyright © 2007-2026 scikit-learn developers (Licensed under BSD 3-Clause).
+
+### Theoretical Frameworks & Curriculum References
+* **Taiwan 108 Curriculum Guidelines**: Ministry of Education, Taiwan (2018). *General Curriculum Guidelines for 12-Year Basic Education*.
+* **Mean Dependency Distance (MDD)**: Liu, H.-T. (2008) *Dependency Distance as a Metric of Language Comprehension Difficulty*. The Journal of Cognitive Science 9: 159-191.
 
 ```
 
