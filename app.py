@@ -121,7 +121,7 @@ CONNECTORS = {
     "條件複句": [r"如果.*就", r"若.*則", r"只要.*就", r"只有.*才", r"除非"]
 }
 
-# 🔄 已恢復原本的單句與批次預設例句
+# 預設單句與批次測試例句
 DEFAULT_SINGLE_Q = "樹上的蘋果又紅又大，看起來非常好吃。"
 
 DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
@@ -132,8 +132,7 @@ DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
 閱讀課外讀物不但能幫助我們認識世界，而且能豐富我們的想像力。
 在進行科學探究時，只有嚴格控制所有的實驗變因，才能確保最終數據的準確性。
 面對團隊合作的意見分歧，我們與其互相爭論誰的點子最好，不如冷靜下來尋找共識。
-現代民主國家設立了權力分立的憲政體制，以免少數掌權者濫用職權而侵害人民的基本權益。
-隨著人工智慧深度學習演算法在臨床醫療診斷領域的廣泛應用與迅速普及，相關的醫療事故法律責任歸屬問題以及患者個人隱私數據保護機制的建構，已成為當前法學界與科技倫理委員會急需處置的核心課題。"""
+現代民主國家設立了權力分立的憲政體制，以免少數掌權者濫用職權而侵害人民的基本權益。"""
 
 # ==========================================
 # 1. 頁面設定
@@ -203,7 +202,7 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
     noun_ratio = nouns_count / word_count if word_count > 0 else 0.0
     verb_ratio = verbs_count / word_count if word_count > 0 else 0.0
     
-    # 💡 關鍵優化：排除標點與空白符號後再計算 MDD
+    # 💡 排除標點與空白符號後計算基準 MDD
     valid_tokens = [t for t in doc if t.pos_ not in ("PUNCT", "SPACE")]
     
     if valid_tokens:
@@ -213,17 +212,29 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
             if t.head != t and t.head.i in token_to_valid_idx:
                 dist = abs(token_to_valid_idx[t.i] - token_to_valid_idx[t.head.i])
                 dep_distances.append(dist)
-        mdd = sum(dep_distances) / len(dep_distances) if dep_distances else 0.0
+        base_mdd = sum(dep_distances) / len(dep_distances) if dep_distances else 0.0
     else:
-        mdd = 0.0
+        base_mdd = 0.0
     
+    # 🌟 核心升級：跨分句/跨標點依存補償因子 (Punctuation & Multi-clause Compensation)
+    # 彌補 spaCy 輕量模型遇到逗點/頓點時將跨句依存關係人為截斷的缺陷
+    clause_delimiters = doc.text.count("，") + doc.text.count("、") + doc.text.count("；")
+    
+    if char_count >= 45 and clause_delimiters >= 2:
+        # 當字數突破 45 字且具備多重分句時，進行長難句結構延伸補償
+        compensation_factor = 1.0 + (0.12 * clause_delimiters)
+        adjusted_mdd = base_mdd * compensation_factor
+    else:
+        adjusted_mdd = base_mdd
+
     return {
         "text": doc.text,
         "char_count": char_count,
         "word_count": word_count,
         "noun_ratio": noun_ratio,
         "verb_ratio": verb_ratio,
-        "mdd": mdd,
+        "base_mdd": base_mdd,
+        "mdd": adjusted_mdd,  # 系統統一傳遞校正後的 MDD
         "clause_types": analyze_clause_types(doc),
         "vocab_depth": calculate_vocab_depth(doc, term_set)
     }
@@ -252,7 +263,7 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     elif features["char_count"] >= 55: score += 2.0
     elif features["char_count"] >= 75: score += 3.0
     
-    # 2. 修正後的無標點 MDD 距離加權
+    # 2. 校正後 MDD 距離加權
     if features["mdd"] < 2.5: score -= 1.0
     elif 3.0 <= features["mdd"] < 3.8: score += 1.0
     elif 3.8 <= features["mdd"] < 4.5: score += 2.5
@@ -271,7 +282,7 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     if features["vocab_depth"] >= 1: score += 1.5
     if features["vocab_depth"] >= 3: score += 1.5
 
-    # 💡 K-12 全學程年級判定卡尺
+    # K-12 全學程年級判定卡尺
     if score >= 9.5:
         grade_str = "10-12 年級 (高中)"
     elif score >= 7.0:
@@ -431,18 +442,22 @@ with tab1:
             cols = st.columns(4)
             cols[0].metric("🎯 預估年級", predicted_grade_str)
             cols[1].metric("📏 總字數", f"{features['char_count']} 字")
-            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}")
+            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", 
+                           delta=f"基礎: {features['base_mdd']:.2f}" if features['mdd'] != features['base_mdd'] else None,
+                           help="含長難句跨分句補償" if features['mdd'] != features['base_mdd'] else "未觸發長句補償")
             cols[3].metric("🔗 複句結構", features["clause_types"])
                 
             if show_table:
                 st.subheader("📋 試題特徵明細")
                 st.dataframe({
-                    "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數"],
+                    "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "原始 MDD (無標點)", "修正 MDD (跨分句補償)"],
                     "數值": [
                         features['word_count'], 
                         f"{features['noun_ratio']:.1%}", 
                         f"{features['verb_ratio']:.1%}", 
-                        f"{features['vocab_depth']} 個"
+                        f"{features['vocab_depth']} 個",
+                        f"{features['base_mdd']:.2f}",
+                        f"{features['mdd']:.2f}"
                     ]
                 }, use_container_width=True)
 
@@ -454,7 +469,7 @@ with tab1:
                     mode = "gauge+number",
                     value = features['mdd'],
                     domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "MDD 依存距離指標<br><span style='font-size:0.8em;color:gray'>數值高於 4.5 即屬高中等級長難句</span>"},
+                    title = {'text': "MDD 依存距離指標 (已含長句校正)<br><span style='font-size:0.8em;color:gray'>數值高於 4.5 即屬高中等級長難句</span>"},
                     gauge = {
                         'axis': {'range': [None, 8.0]},
                         'bar': {'color': "#1f77b4"},
