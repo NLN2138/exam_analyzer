@@ -39,8 +39,9 @@ ALL_SUBJECT_TERMS = set().union(*SUBJECT_TERMS.values())
 # ==========================================
 # 1. 頁面基本設定
 # ==========================================
+# [修改] 更新瀏覽器分頁標題
 st.set_page_config(
-    page_title="台灣中小學試題句子難度檢測系統",
+    page_title="台灣中小學試題句子難度檢測系統（雛形）",
     page_icon="📚",
     layout="wide"
 )
@@ -113,7 +114,6 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
         "vocab_depth": calculate_vocab_depth(doc, term_set)
     }
 
-# [更新] 回傳 Tuple，包含「區間字串」與「精確原始積分」
 def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[str, float]:
     score = 3.0 
     if ml_model is not None:
@@ -162,13 +162,12 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
     
     for i, doc in enumerate(nlp_model.pipe(question_list, batch_size=50)):
         feat = extract_features_from_doc(doc, term_set)
-        # [更新] 接收原始積分
         grade_str, raw_score = predict_grade(feat, difficulty_model)
         
         results.append({
             "題目內容": feat["text"],
             "預估適用年級": grade_str,
-            "分數_hidden": raw_score,  # 隱藏欄位，用於計算總平均單一年級
+            "分數_hidden": raw_score,  
             "複句結構與句式": feat["clause_types"],
             "總字數": feat["char_count"],
             "名詞密度": f"{feat['noun_ratio']:.1%}",
@@ -183,15 +182,9 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
 # 3.5 視覺化統計與總覽 UI 繪製邏輯
 # ==========================================
 def render_overall_summary(df: pd.DataFrame) -> pd.DataFrame:
-    """計算並顯示多題檢測的頂端總覽指標，然後回傳移除隱藏分數欄位的 DataFrame"""
-    # 1. 綜合預估年級 (平均積分四捨五入，保底 1 年級)
     avg_score = df["分數_hidden"].mean()
     overall_grade = max(1, int(round(avg_score)))
-    
-    # 2. 總字數
     total_chars = int(df["總字數"].sum())
-    
-    # 3. 平均依存距離
     avg_mdd = df["MDD數值"].mean()
     
     st.markdown("### 🌟 整體題庫評估總覽")
@@ -201,7 +194,6 @@ def render_overall_summary(df: pd.DataFrame) -> pd.DataFrame:
     c3.metric("🧠 平均依存距離 (MDD)", f"{avg_mdd:.2f}")
     st.divider()
     
-    # 移除隱藏欄位，避免顯示在明細表與下載的 CSV 中
     return df.drop(columns=["分數_hidden"])
 
 def render_statistics_charts(df: pd.DataFrame):
@@ -270,7 +262,8 @@ with st.sidebar:
     else:
         current_term_set = SUBJECT_TERMS.get(subject, set())
 
-st.title("📚 台灣中小學試題句子難度檢測系統")
+# [修改] 更新主頁面大標題
+st.title("📚 台灣中小學試題句子難度檢測系統（雛形）")
 st.caption(f"目前分析學科模式：**{subject}** (將依據對應學科之進階詞庫進行難度加權)")
 
 tab1, tab2 = st.tabs(["✍️ 單題檢測與複句分析", "📋 批次多題檢測與統計儀表板"])
@@ -286,10 +279,8 @@ with tab1:
             with st.spinner("分析中..."):
                 doc = nlp(question_text)
                 features = extract_features_from_doc(doc, current_term_set)
-                # 解構取出預估區間與原始分數
                 predicted_grade_str, predicted_raw_score = predict_grade(features, model)
                 
-                # 若要單題也顯示精確年級，可利用 predicted_raw_score，這裡保持原設計區間
                 st.divider()
                 cols = st.columns(4)
                 cols[0].metric("🎯 預估年級", predicted_grade_str)
@@ -354,7 +345,6 @@ with tab2:
                 res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
                 st.divider()
                 
-                # [新增] 渲染頂端總覽指標，並回傳乾淨(無分數_hidden)的 DataFrame
                 display_df = render_overall_summary(res_df)
                 
                 if show_charts:
@@ -386,7 +376,6 @@ with tab2:
                         res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
                         st.divider()
                         
-                        # [新增] 渲染頂端總覽指標
                         display_df = render_overall_summary(res_df)
                         
                         if show_charts:
