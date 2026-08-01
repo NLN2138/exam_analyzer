@@ -536,7 +536,7 @@ def render_statistics_charts(df: pd.DataFrame):
     col2.plotly_chart(fig_clause, use_container_width=True)
     
     bins = [0, 2.5, 3.5, 4.5, 6.0, 100]
-    labels = ['<2.5 (簡單)', '2.5-3.5', '3.5-4.5', '4.5-6.0 (高中)', '6.0+ (高難/頂尖)']
+    labels = ['<2.5', '2.5-3.5', '3.5-4.5', '4.5-6.0', '6.0+']
     df_mdd = df.copy()
     df_mdd['MDD區間'] = pd.cut(df_mdd['MDD數值'], bins=bins, labels=labels, right=False)
     mdd_counts = df_mdd['MDD區間'].value_counts().sort_index().reset_index()
