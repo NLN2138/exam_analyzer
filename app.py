@@ -1,197 +1,252 @@
-import streamlit as st
-import spacy
-import re
-import pandas as pd
-import joblib
 import os
-import subprocess
+import joblib
+import pandas as pd
+import spacy
+import streamlit as st
+from typing import List, Dict, Any, Optional
 
 # ==========================================
-# 1. 頁面配置與模型快取 (雲端優化)
+# 0. 靜態常數定義 (容易維護與擴充)
+# ==========================================
+ADVANCED_KEYWORDS = {
+    "由於", "導致", "以致於", "即使", "仍", "除非", "無論", "若", 
+    "除了...也", "透過", "以維持", "評估", "脈絡", "偏誤", "然而", 
+    "此外", "因此", "鑑於", "唯有", "與其", "不如"
+}
+
+CONNECTORS = {
+    "因果複句": ["因為", "所以"],
+    "轉折複句": ["雖然", "但是", "不過", "卻", "可是"],
+    "假設複句": ["如果", "要是", "假如", "的話"],
+    "條件複句": ["只要", "只有", "當...時", "除了"],
+    "並列複句": ["同時", "一方面", "以及", "並且", "也"]
+}
+
+ADVANCED_TERMS = {
+    "演算法", "同溫層", "合力", "敘事觀點", "社會文化脈絡", "供給", "需求",
+    "蒸發", "凝結", "光合作用", "分裂", "細胞", "生物體", "公義", "政治結構",
+    "經濟條件", "環境影響", "社會公平", "單一因果", "偏誤", "多元觀點", "效率"
+}
+
+# ==========================================
+# 1. 頁面基本設定
 # ==========================================
 st.set_page_config(
-    page_title="國小測驗卷語句難度與語意分析系統",
+    page_title="台灣中小學試題句子難度檢測系統",
     page_icon="📚",
     layout="wide"
 )
 
-@st.cache_resource
-def load_nlp_model():
-    """自動檢查並載入 spaCy 中文模型，若無則自動下載"""
-    model_name = "zh_core_web_sm"
+# ==========================================
+# 2. 核心資源快取載入區
+# ==========================================
+@st.cache_resource(show_spinner="載入 NLP 模型中...")
+def load_nlp():
     try:
-        return spacy.load(model_name)
+        return spacy.load("zh_core_web_sm")
     except OSError:
-        # 如果雲端環境尚未安裝該模型，自動透過指令進行安裝
-        try:
-            subprocess.run(["python", "-m", "spacy", "download", model_name], check=True)
-            return spacy.load(model_name)
-        except Exception as e:
-            return None
-    except Exception:
-        return None
+        st.error("❌ 找不到 spaCy 'zh_core_web_sm' 模型！請確保 requirements.txt 有正確配置下載。")
+        st.stop()
 
-@st.cache_resource
-def load_ml_model():
-    """載入預測模型 (.pkl)，若不存在則回傳 None"""
-    if os.path.exists('mdd_baseline_model.pkl'):
-        try:
-            return joblib.load('mdd_baseline_model.pkl')
-        except Exception:
-            return None
+@st.cache_resource(show_spinner="載入評分模型中...")
+def load_difficulty_model():
+    model_path = "mdd_baseline_model.pkl"
+    if os.path.exists(model_path):
+        return joblib.load(model_path)
     return None
 
-nlp = load_nlp_model()
-ml_model = load_ml_model()
-
 # ==========================================
-# 2. 核心 NLP 引擎與特徵萃取
+# 3. 難度特徵運算邏輯
 # ==========================================
-class QuestionPreprocessor:
-    def __init__(self):
-        self.semantic_markers = {
-            "因果": r"(because|because of|因為|所以|由於|因此|導致|以致於)",
-            "假設": r"(如果|假使|要是|若|則|假如|一旦)",
-            "轉折": r"(但是|可是|卻|雖然|然而|不過|只是)",
-            "條件": r"(只要|只有|除非|無論|不管|任憑)",
-            "並列": r"(一邊|同時|以及|和|跟|與|既)",
-            "目的": r"(為了|以便|以免|用以)",
-            "遞進": r"(不但|而且|甚至|更|何況)",
-            "選擇": r"(或者|還是|與其|不如|寧可)"
-        }
+def analyze_clause_types(doc: spacy.tokens.Doc) -> str:
+    text = doc.text
+    detected_types = []
     
-    def _calculate_mdd(self, doc):
-        """計算單一句子的平均依存距離 (MDD)"""
-        if not doc: 
-            return 0.0
+    if any(kw in text for kw in ADVANCED_KEYWORDS):
+        detected_types.append("進階論述句")
         
-        total_distance = 0
-        valid_tokens = 0
-        
-        for token in doc:
-            if token.dep_ != "ROOT" and not token.is_punct and token.pos_ != "PUNCT":
-                distance = abs(token.i - token.head.i)
-                total_distance += distance
-                valid_tokens += 1
-                
-        return total_distance / valid_tokens if valid_tokens > 0 else 0.0
-
-    def _classify_semantic_marker(self, text):
-        for marker, pattern in self.semantic_markers.items():
-            if re.search(pattern, text):
-                return marker
-        return "連貫／承接"
-
-    def analyze(self, text: str, subject: str) -> dict:
-        word_count = len(text.strip())
-        doc = nlp(text) if nlp else None
-        mdd_value = self._calculate_mdd(doc)
-        semantic_type = self._classify_semantic_marker(text)
-        
-        return {
-            "MDD(平均依存距離)": round(mdd_value, 3),
-            "字數": word_count,
-            "學科": subject,
-            "東方語意標記": semantic_type
-        }
-
-# ==========================================
-# 3. 預測邏輯
-# ==========================================
-def predict_grade(analysis_result: dict) -> str:
-    if ml_model is not None:
-        features_df = pd.DataFrame([analysis_result])
-        try:
-            prediction = ml_model.predict(features_df)[0]
-            return str(prediction)
-        except Exception:
-            pass 
-    
-    mdd = analysis_result["MDD(平均依存距離)"]
-    subj = analysis_result["學科"]
-    if mdd > 3.6 and subj in ["自然", "社會"]:
-        return "5年級或6年級 (統計基準推估)"
-    elif mdd > 3.5:
-        return "4年級或5年級 (統計基準推估)"
-    else:
-        return "3年級 (統計基準推估)"
-
-# ==========================================
-# 4. Streamlit 網頁介面設計
-# ==========================================
-st.title("📚 國小測驗卷語句難度與語意分析系統")
-st.markdown("本系統基於量化語料庫與依存句法分析（MDD），評估國小各學科試題的句法負擔與適配年級。")
-
-if nlp is None:
-    st.error("🚨 嚴重錯誤：無法載入或自動下載 spaCy 中文模型 (`zh_core_web_sm`)。請檢查網路或環境設定。")
-    st.stop()
-
-if ml_model is None:
-    st.info("💡 提示：目前未檢測到 `.pkl` 模型檔案，系統自動採用基於統計特徵的基準線引擎進行預測。")
-
-engine = QuestionPreprocessor()
-
-col1, col2 = st.columns([1, 1.8], gap="large")
-
-with col1:
-    st.subheader("📝 試題輸入區")
-    subject = st.selectbox(
-        "選擇所屬學科：", 
-        ["自然", "社會", "國語"],
-        help="不同學科的語句負荷基準不同，社會與自然科通常具有更高的句法複雜度。"
-    )
-    
-    default_text = "如果我們不控制碳排放，全球暖化將導致極端氣候常態化。"
-    question_text = st.text_area(
-        "請輸入或貼上試題文本：", 
-        height=180, 
-        value=default_text,
-        help="請輸入單一試題或複句文本。"
-    )
-    
-    analyze_btn = st.button("🚀 開始深度分析", type="primary", use_container_width=True)
-
-with col2:
-    st.subheader("📊 分析結果與儀表板")
-    
-    if analyze_btn:
-        if not question_text.strip():
-            st.warning("⚠️ 請先輸入有效的試題文本！")
+    for clause_type, keywords in CONNECTORS.items():
+        if any(kw in text for kw in keywords):
+            detected_types.append(clause_type)
+            
+    if not detected_types:
+        dep_labels = {token.dep_ for token in doc}
+        if "advcl" in dep_labels or "conj" in dep_labels:
+            detected_types.append("複雜修飾句")
         else:
-            with st.spinner("正在進行依存句法剖析與語意特徵萃取..."):
-                result = engine.analyze(question_text, subject)
-                predicted_grade = predict_grade(result)
+            detected_types.append("簡單句")
             
-            st.success(f"### 🎯 預測適配年級：**{predicted_grade}**")
-            
-            m1, m2, m3 = st.columns(3)
-            m1.metric(
-                label="MDD (平均依存距離)", 
-                value=result["MDD(平均依存距離)"],
-                help="句子中詞語與支配詞距離的平均值，數值越高代表句法結構越長、樹狀越深、閱讀負荷越大。"
-            )
-            m2.metric(
-                label="文本總字數", 
-                value=f"{result['字數']} 字"
-            )
-            m3.metric(
-                label="東方語意標記", 
-                value=result["東方語意標記"],
-                help="依據關聯詞自動判定的複句邏輯類型（如假設、因果、轉折等）。"
-            )
-            
-            st.divider()
-            
-            st.markdown("#### 💡 教學與命題檢核建議")
-            mdd_val = result["MDD(平均依存距離)"]
-            if mdd_val > 3.6:
-                st.warning(
-                    f"此題的 MDD 為 **{mdd_val}**，句法結構較為複雜。若作為中年級（3-4年級）測驗，"
-                    "學生可能需要花費額外認知資源在「解析句型」而非「理解學科知識」上，建議適度拆解子句。"
-                )
-            else:
-                st.info(
-                    f"此題的 MDD 為 **{mdd_val}**，句法結構適中，符合一般學童的認知發展負荷，具有良好的測驗親和性。"
-                )
+    return ", ".join(detected_types)
+
+def calculate_vocab_depth(doc: spacy.tokens.Doc) -> int:
+    return sum(1 for token in doc if token.text in ADVANCED_TERMS)
+
+def extract_features_from_doc(doc: spacy.tokens.Doc) -> Dict[str, Any]:
+    word_count = len(doc)
+    char_count = len(doc.text)
+    
+    nouns_count = sum(1 for token in doc if token.pos_ in ("NOUN", "PROPN"))
+    verbs_count = sum(1 for token in doc if token.pos_ == "VERB")
+    
+    noun_ratio = nouns_count / word_count if word_count > 0 else 0.0
+    verb_ratio = verbs_count / word_count if word_count > 0 else 0.0
+    
+    dep_distances = [abs(token.i - token.head.i) for token in doc if token.head != token]
+    mdd = sum(dep_distances) / len(dep_distances) if dep_distances else 0.0
+    
+    return {
+        "text": doc.text,
+        "char_count": char_count,
+        "word_count": word_count,
+        "noun_ratio": noun_ratio,
+        "verb_ratio": verb_ratio,
+        "mdd": mdd,
+        "clause_types": analyze_clause_types(doc),
+        "vocab_depth": calculate_vocab_depth(doc)
+    }
+
+def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> str:
+    base_grade = 3
+    
+    if ml_model is not None:
+        try:
+            df_features = pd.DataFrame([{
+                "char_count": features["char_count"],
+                "word_count": features["word_count"],
+                "noun_ratio": features["noun_ratio"],
+                "verb_ratio": features["verb_ratio"],
+                "mdd": features["mdd"]
+            }])
+            raw_pred = ml_model.predict(df_features)[0]
+            if isinstance(raw_pred, (int, float)):
+                base_grade = int(raw_pred)
+        except Exception:
+            pass
+
+    adjustment = 0
+    if features["char_count"] <= 20 and features["mdd"] < 2.5 and features["noun_ratio"] < 0.20:
+        adjustment -= 2
+        
+    if "進階論述句" in features["clause_types"] or features["vocab_depth"] >= 2:
+        adjustment += 2
+    elif features["char_count"] >= 35 and features["noun_ratio"] >= 0.35:
+        adjustment += 2
+
+    final_grade = base_grade + adjustment
+    if final_grade >= 5: return "5-6 年級 (高年級)"
+    if final_grade <= 2: return "1-2 年級 (低年級)"
+    return "3-4 年級 (中年級)"
+
+def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model) -> pd.DataFrame:
+    results = []
+    progress_bar = st.progress(0)
+    total = len(question_list)
+    
+    # 使用 nlp.pipe 提升效能
+    for i, doc in enumerate(nlp_model.pipe(question_list, batch_size=50)):
+        feat = extract_features_from_doc(doc)
+        grade = predict_grade(feat, difficulty_model)
+        
+        results.append({
+            "題目內容": feat["text"],
+            "預估適用年級": grade,
+            "複句結構與句式": feat["clause_types"],
+            "總字數": feat["char_count"],
+            "名詞密度": f"{feat['noun_ratio']:.1%}",
+            "MDD數值": round(feat["mdd"], 2)
+        })
+        progress_bar.progress((i + 1) / total)
+        
+    progress_bar.empty()
+    return pd.DataFrame(results)
+
+# ==========================================
+# 4. 前端介面與互動
+# ==========================================
+with st.sidebar:
+    st.header("⚙️ 系統狀態")
+    nlp = load_nlp()
+    st.success("✅ spaCy 中文模型已載入")
+    
+    model = load_difficulty_model()
+    if model:
+        st.success("✅ ML 基準模型已啟用")
     else:
-        st.info("👈 請在左側輸入試題並點擊「開始深度分析」以檢視結構指標。")
+        st.warning("⚠️ 啟用純規則評分引擎 (未載入 pkl 模型)")
+        
+    st.divider()
+    subject = st.selectbox("學科", ["國語文", "數學", "社會", "自然"])
+    show_table = st.checkbox("顯示特徵明細表", value=True)
+
+st.title("📚 台灣中小學試題句子難度檢測系統")
+st.caption("支援單題檢測、句式特徵解析，以及多題文字貼上／檔案上傳的批次檢測。")
+
+tab1, tab2 = st.tabs(["✍️ 單題檢測與複句分析", "📋 批次多題文字與題庫檢測"])
+
+# --- TAB 1: 單題檢測 ---
+with tab1:
+    question_text = st.text_area("題目文字", height=130, placeholder="請輸入試題...")
+
+    if st.button("🚀 開始檢測單題", type="primary"):
+        if not question_text.strip():
+            st.warning("請先輸入題目文字！")
+        else:
+            with st.spinner("分析中..."):
+                doc = nlp(question_text)
+                features = extract_features_from_doc(doc)
+                predicted_grade = predict_grade(features, model)
+                
+                st.divider()
+                cols = st.columns(4)
+                cols[0].metric("🎯 預估年級", str(predicted_grade))
+                cols[1].metric("📏 總字數", f"{features['char_count']} 字")
+                cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}")
+                cols[3].metric("🔗 複句結構", features["clause_types"])
+                    
+                if show_table:
+                    st.subheader("📋 試題特徵明細")
+                    st.dataframe({
+                        "特徵名稱": ["總詞數", "名詞比例", "動詞比例", "進階術語計數"],
+                        "數值": [
+                            features['word_count'], 
+                            f"{features['noun_ratio']:.1%}", 
+                            f"{features['verb_ratio']:.1%}", 
+                            f"{features['vocab_depth']} 個"
+                        ]
+                    }, use_container_width=True)
+
+# --- TAB 2: 批次查詢 ---
+with tab2:
+    batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
+    
+    if batch_mode == "📋 貼上多行文字":
+        batch_text = st.text_area("每行一題：", height=250)
+        if st.button("⚡ 開始批次分析", type="primary"):
+            q_list = [line.strip() for line in batch_text.split("\n") if line.strip()]
+            if q_list:
+                res_df = run_batch_analysis(q_list, nlp, model)
+                st.dataframe(res_df, use_container_width=True)
+                st.download_button("📥 下載 CSV", res_df.to_csv(index=False).encode("utf-8-sig"), "文字批次報告.csv", "text/csv")
+            else:
+                st.warning("請貼上有效的題目內容！")
+                
+    else:
+        uploaded_file = st.file_uploader("請選擇 CSV 或 Excel 檔案", type=["csv", "xlsx"])
+        if uploaded_file:
+            try:
+                df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
+                text_col = next((c for c in df.columns if str(c).strip().lower() in ["題目", "question", "text", "試題", "內容"]), None)
+                
+                if not text_col:
+                    st.error(f"❌ 找不到題目欄位！現有欄位：{', '.join(df.columns)}")
+                else:
+                    q_list = df[text_col].dropna().astype(str).str.strip()
+                    q_list = q_list[q_list != ""].tolist()
+                    
+                    st.info(f"成功擷取 {len(q_list)} 題，準備分析。")
+                    if st.button("⚡ 開始分析檔案", type="primary"):
+                        res_df = run_batch_analysis(q_list, nlp, model)
+                        st.dataframe(res_df, use_container_width=True)
+                        st.download_button("📥 下載結果", res_df.to_csv(index=False).encode("utf-8-sig"), "檔案分析報告.csv", "text/csv")
+            except Exception as e:
+                st.error(f"讀取失敗：{e}")
