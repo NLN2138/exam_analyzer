@@ -14,18 +14,25 @@ ADVANCED_KEYWORDS = {
     "此外", "因此", "鑑於", "唯有", "與其", "不如"
 }
 
+# [已優化] 擴充台灣教育常見的複句句式字典
 CONNECTORS = {
-    "因果複句": ["因為", "所以"],
-    "轉折複句": ["雖然", "但是", "不過", "卻", "可是"],
-    "假設複句": ["如果", "要是", "假如", "的話"],
-    "條件複句": ["只要", "只有", "當...時", "除了"],
-    "並列複句": ["同時", "一方面", "以及", "並且", "也"]
+    "因果複句": ["因為", "所以", "由於", "因此", "以致於", "導致"],
+    "轉折複句": ["雖然", "但是", "不過", "卻", "可是", "然而"],
+    "假設複句": ["如果", "要是", "假如", "的話", "若", "即使"],
+    "條件複句": ["只要", "只有", "當...時", "除了", "除非", "無論", "唯有"],
+    "並列複句": ["同時", "一方面", "以及", "並且", "也", "又", "既...又..."],
+    "遞進複句": ["不但", "而且", "甚至", "更", "不僅"],
+    "承接複句": ["先", "然後", "接著", "於是", "才"],
+    "目的複句": ["為了", "以免", "以便", "以維持"],
+    "選擇複句": ["不是...就是", "與其...不如", "寧可...也不"]
 }
 
+# [已優化] 加入更多跨學科的進階與抽象詞彙
 ADVANCED_TERMS = {
     "演算法", "同溫層", "合力", "敘事觀點", "社會文化脈絡", "供給", "需求",
     "蒸發", "凝結", "光合作用", "分裂", "細胞", "生物體", "公義", "政治結構",
-    "經濟條件", "環境影響", "社會公平", "單一因果", "偏誤", "多元觀點", "效率"
+    "經濟條件", "環境影響", "社會公平", "單一因果", "偏誤", "多元觀點", "效率",
+    "憲政體制", "權力分立", "變因", "共識", "職權", "濫用", "權益"
 }
 
 # ==========================================
@@ -106,7 +113,8 @@ def extract_features_from_doc(doc: spacy.tokens.Doc) -> Dict[str, Any]:
     }
 
 def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> str:
-    base_grade = 3
+    # [已優化] 改為「積分制」判斷模型
+    score = 3.0 
     
     if ml_model is not None:
         try:
@@ -119,30 +127,46 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> str:
             }])
             raw_pred = ml_model.predict(df_features)[0]
             if isinstance(raw_pred, (int, float)):
-                base_grade = int(raw_pred)
+                score = float(raw_pred)
         except Exception:
             pass
 
-    adjustment = 0
-    if features["char_count"] <= 20 and features["mdd"] < 2.5 and features["noun_ratio"] < 0.20:
-        adjustment -= 2
+    # --- 積分動態校正 ---
+    # 1. 字數影響
+    if features["char_count"] <= 20: score -= 1.0
+    elif features["char_count"] >= 35: score += 1.0
+    elif features["char_count"] >= 45: score += 1.5
+    
+    # 2. MDD 依存距離影響 (衡量句法複雜度，最關鍵指標)
+    if features["mdd"] < 2.6: score -= 0.5
+    elif 3.2 <= features["mdd"] < 4.0: score += 1.0
+    elif features["mdd"] >= 4.0: score += 2.0  # MDD 極高，句式崎嶇
+    
+    # 3. 詞彙密度影響
+    if features["noun_ratio"] < 0.20: score -= 0.5
+    elif features["noun_ratio"] > 0.30: score += 0.5
+    
+    # 4. 特定困難句式與進階詞彙加成
+    complex_clauses = ["進階論述句", "目的複句", "選擇複句", "遞進複句"]
+    if any(c in features["clause_types"] for c in complex_clauses):
+        score += 1.0
         
-    if "進階論述句" in features["clause_types"] or features["vocab_depth"] >= 2:
-        adjustment += 2
-    elif features["char_count"] >= 35 and features["noun_ratio"] >= 0.35:
-        adjustment += 2
+    if features["vocab_depth"] >= 1:
+        score += 1.5
 
-    final_grade = base_grade + adjustment
-    if final_grade >= 5: return "5-6 年級 (高年級)"
-    if final_grade <= 2: return "1-2 年級 (低年級)"
-    return "3-4 年級 (中年級)"
+    # --- 計算最終年級區間 ---
+    if score >= 4.5:
+        return "5-6 年級 (高年級) 或以上"
+    elif score <= 2.5:
+        return "1-2 年級 (低年級)"
+    else:
+        return "3-4 年級 (中年級)"
 
 def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model) -> pd.DataFrame:
     results = []
     progress_bar = st.progress(0)
     total = len(question_list)
     
-    # 使用 nlp.pipe 提升效能
     for i, doc in enumerate(nlp_model.pipe(question_list, batch_size=50)):
         feat = extract_features_from_doc(doc)
         grade = predict_grade(feat, difficulty_model)
@@ -172,7 +196,7 @@ with st.sidebar:
     if model:
         st.success("✅ ML 基準模型已啟用")
     else:
-        st.warning("⚠️ 啟用純規則評分引擎 (未載入 pkl 模型)")
+        st.warning("⚠️ 啟用動態積分評分引擎 (未載入 pkl 模型)")
         
     st.divider()
     subject = st.selectbox("學科", ["國語文", "數學", "社會", "自然"])
