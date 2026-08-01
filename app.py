@@ -2,6 +2,7 @@ import os
 import re
 import joblib
 import pandas as pd
+import numpy as np
 import spacy
 import streamlit as st
 import plotly.express as px
@@ -9,7 +10,7 @@ import plotly.graph_objects as go
 from typing import List, Dict, Any, Optional, Tuple
 
 # ==========================================
-# 0. 靜態常數定義
+# 0. 靜態常數與黑名單定義
 # ==========================================
 
 ADVANCED_KEYWORDS = {
@@ -115,6 +116,14 @@ CONNECTORS = {
     "條件複句": [r"如果.*就", r"若.*則", r"只要.*就", r"只有.*才", r"除非"]
 }
 
+# 試題低難度常見指示詞/結構黑名單 (專門掃除拉低難度的指示雜訊)
+INSTRUCTION_PATTERNS = [
+    r'請[畫劃選填寫看算選]看', r'下列[何者|敘述]', r'正確的[打畫]', r'填入[適當|正確]',
+    r'回答[下列|以下]問題', r'選出[一個|正確]', r'第.*題', r'每題.*分', r'共.*分',
+    r'閱讀測驗', r'一、', r'二、', r me for r'三、', r'四、', r'五、', r'六、', r'七、', r'八、',
+    r'看圖[回答|填]', r'勾選', r'連連看', r'圈圈看'
+]
+
 DEFAULT_SINGLE_Q = "樹上的蘋果又紅又大，看起來非常好吃。"
 
 DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
@@ -160,37 +169,56 @@ def load_difficulty_model():
     return None
 
 # ==========================================
-# 3. 試題清洗與拆分引擎 (全新增強功能)
+# 3. 試題清洗與拆分引擎 (進階智慧降噪版)
 # ==========================================
-def sanitize_exam_paper(raw_text: str, min_length: int = 12) -> List[str]:
+def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str], List[str]]:
     """
-    清洗完整考題，自動去除題目結構雜訊，擷取有代表性的長句
+    進階考題降噪引擎：過濾題目結構雜訊、指令句、選項，保留具代表性的題幹與閱讀文本。
+    回傳：(有效語句列表, 被過濾的雜訊列表)
     """
-    # 1. 移除常見的配分與大題標號說明
+    # 1. 移除配分、大題標號說明、括號填空
     cleaned = re.sub(r'[(（][^()（）]*每[題字格分].*?[)）]', '', raw_text)
     cleaned = re.sub(r'[一二三四五六七八九十]+\s*[\u4e00-\u9fa5]+[：:]', '', cleaned)
     cleaned = re.sub(r'^\s*[\d\w]+\s*[\.、．]', '', cleaned, flags=re.MULTILINE)
     cleaned = re.sub(r'[↓｜|]', '', cleaned)
+    cleaned = re.sub(r'\([ 0-9A-Za-z\s]*\)|（[ 0-9A-Za-z\s]*）', '', cleaned) # 清除填空括號 ( )
     
-    # 2. 依據中文常見終止符號與換行進行切割
+    # 2. 依據終止符號與換行切割
     raw_sentences = re.split(r'[\n。！？!?]', cleaned)
     
     valid_sentences = []
+    filtered_out = []
+    
     for s in raw_sentences:
         s_strip = s.strip()
         # 清除剩餘的標號前綴
         s_strip = re.sub(r'^\s*\d+\s*', '', s_strip)
         
-        # 3. 濾鏡規則：字數需達到門檻，且非純注音/選項/標點組合
-        if len(s_strip) >= min_length:
-            # 排除選項式的短問答或無意義結構
-            if not re.search(r'^(選項|答案|選擇|填空|改錯字)', s_strip):
-                valid_sentences.append(s_strip)
+        if not s_strip:
+            continue
+            
+        # 3. 字數門檻檢查
+        if len(s_strip) < min_length:
+            filtered_out.append(f"[過短] {s_strip}")
+            continue
+            
+        # 4. 指令句與題型標頭過濾（低年級拉低難度的主要雜訊來源）
+        is_instruction = any(re.search(pat, s_strip) for pat in INSTRUCTION_PATTERNS)
+        if is_instruction and len(s_strip) < 28:
+            filtered_out.append(f"[指令句] {s_strip}")
+            continue
+            
+        # 5. 選項式短問答過濾
+        if re.search(r'^(選項|答案|選擇|填空|改錯字|配對)', s_strip):
+            filtered_out.append(f"[結構標籤] {s_strip}")
+            continue
+            
+        valid_sentences.append(s_strip)
                 
-    return valid_sentences
+    return valid_sentences, filtered_out
 
 # ==========================================
-# 4. 難度特徵運算邏輯
+# 4. 難度特徵運算邏輯 (含保底門檻與平滑校正)
 # ==========================================
 def analyze_clause_types(doc: spacy.tokens.Doc) -> str:
     text = doc.text
@@ -270,6 +298,7 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
 def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[str, float]:
     score = 3.0
     
+    # 1. ML 模型輔助評分
     if ml_model is not None:
         try:
             df_features = pd.DataFrame([{
@@ -285,48 +314,65 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
         except Exception:
             pass
 
-    if features["char_count"] <= 20: score -= 1.0
-    elif features["char_count"] >= 35: score += 1.0
-    elif features["char_count"] >= 55: score += 2.0
-    elif features["char_count"] >= 75: score += 3.0
-    elif features["char_count"] >= 90: score += 4.0
+    # 2. 字數平滑加權 (解決短句低年級膨脹與長句加成)
+    char_len = features["char_count"]
+    if char_len <= 15: score -= 1.5
+    elif char_len <= 25: score -= 0.5
+    elif 26 <= char_len <= 45: score += 0.5
+    elif 46 <= char_len <= 70: score += 1.5
+    elif 71 <= char_len <= 100: score += 2.5
+    elif char_len > 100: score += 4.0
     
-    if features["mdd"] < 2.5: score -= 1.0
-    elif 3.0 <= features["mdd"] < 3.8: score += 1.0
-    elif 3.8 <= features["mdd"] < 4.8: score += 2.5
-    elif features["mdd"] >= 4.8: score += 4.5
-    
-    if features["noun_ratio"] < 0.20: score -= 0.5
-    elif features["noun_ratio"] > 0.35: score += 1.0
-    elif features["noun_ratio"] > 0.45: score += 2.0
-    
+    # 3. MDD 依存距離區間校正
+    mdd = features["mdd"]
+    if mdd < 2.0: score -= 1.5
+    elif 2.0 <= mdd < 2.8: score -= 0.5
+    elif 3.5 <= mdd < 4.2: score += 1.0
+    elif 4.2 <= mdd < 5.0: score += 2.5
+    elif mdd >= 5.0: score += 4.0
+
+    # 4. 名詞密度校正 (高年級題目抽象概念與名詞密度顯著偏高)
+    noun_r = features["noun_ratio"]
+    if noun_r < 0.20: score -= 1.0
+    elif 0.35 <= noun_r < 0.45: score += 1.0
+    elif noun_r >= 0.45: score += 2.0
+
+    # 5. 複句結構
     complex_clauses = ["進階論述句", "目的複句", "選擇複句", "遞進複句", "推斷複句", "假轉複句", "取捨複句"]
     if any(c in features["clause_types"] for c in complex_clauses):
         score += 1.5
-        
-    if features["vocab_depth"] >= 1: score += 1.5
-    if features["vocab_depth"] >= 3: score += 1.5
-    if features["vocab_depth"] >= 5: score += 2.0
 
-    if score >= 9.5:
-        grade_str = "10-12 年級 (高中或以上)"
-    elif score >= 7.0:
-        grade_str = "7-9 年級 (國中)"
-    elif score >= 5.0:
-        grade_str = "5-6 年級 (國小高年級)"
-    elif score >= 3.0:
-        grade_str = "3-4 年級 (國小中年級)"
-    else:
-        grade_str = "1-2 年級 (國小低年級)"
+    # 6. 學科術語與專有名詞地基校正 (解決高年級概念難但句式簡單被低估)
+    v_depth = features["vocab_depth"]
+    if v_depth == 1: score += 1.0
+    elif v_depth == 2: score += 2.0
+    elif v_depth >= 3: score += 3.5
+    
+    # 🌟【學科保底門檻】觸發多個專業術語，直接保底為國中(6.5)或高中(8.5)以上
+    if v_depth >= 3 and score < 8.5:
+        score = max(score, 8.5)
+    elif v_depth >= 2 and score < 6.5:
+        score = max(score, 6.5)
+
+    # 7. 低年級短句無詞彙懲罰 (解決低年級高估)
+    if char_len < 20 and v_depth == 0 and "簡單句" in features["clause_types"]:
+        score = min(score, 3.5)
+
+    # 年級映射
+    if score >= 9.5: grade_str = "10-12 年級 (高中或以上)"
+    elif score >= 7.0: grade_str = "7-9 年級 (國中)"
+    elif score >= 5.0: grade_str = "5-6 年級 (國小高年級)"
+    elif score >= 3.0: grade_str = "3-4 年級 (國小中年級)"
+    else: grade_str = "1-2 年級 (國小低年級)"
     
     return grade_str, score
 
 def map_score_to_grade_str(avg_score: float) -> str:
     if avg_score >= 9.5: return "10-12 年級 (高中或以上)"
     elif avg_score >= 7.0: return "7-9 年級 (國中)"
-    elif avg_score >= 5.0: return "5-6 年級 (高年級)"
-    elif avg_score >= 3.0: return "3-4 年級 (中年級)"
-    else: return "1-2 年級 (低年級)"
+    elif avg_score >= 5.0: return "5-6 年級 (國小高年級)"
+    elif avg_score >= 3.0: return "3-4 年級 (國小中年級)"
+    else: return "1-2 年級 (國小低年級)"
 
 def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, term_set: set) -> pd.DataFrame:
     results = []
@@ -344,6 +390,7 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
             "複句結構與句式": feat["clause_types"],
             "總字數": feat["char_count"],
             "名詞密度": f"{feat['noun_ratio']:.1%}",
+            "學科術語數": feat["vocab_depth"],
             "MDD數值": round(feat["mdd"], 2)
         })
         progress_bar.progress((i + 1) / total)
@@ -352,32 +399,51 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
     return pd.DataFrame(results)
 
 # ==========================================
-# 5. 視覺化統計 UI
+# 5. 視覺化統計與整體試卷加權 UI
 # ==========================================
 def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, float]:
-    avg_score = df["分數_hidden"].mean()
-    overall_grade_str = map_score_to_grade_str(avg_score)
+    """
+    採用 Top 30% 最難語句 (P75 加權) 來評估整份考卷難度，避免傳統平均數被低難度題目稀釋
+    """
+    scores = df["分數_hidden"].values
+    if len(scores) >= 5:
+        # 取前 30% 最難語句的分數進行加權平均
+        top_30_cutoff = np.percentile(scores, 70)
+        hard_scores = [s for s in scores if s >= top_30_cutoff]
+        overall_score = float(np.mean(hard_scores))
+    else:
+        overall_score = float(np.mean(scores))
+
+    overall_grade_str = map_score_to_grade_str(overall_score)
     total_chars = int(df["總字數"].sum())
-    avg_mdd = df["MDD數值"].mean()
     
-    st.markdown("### 🌟 整體題庫評估總覽")
+    # MDD 同樣採用 Top 30% 代表性語句之平均
+    if len(df) >= 5:
+        top_mdd_cutoff = np.percentile(df["MDD數值"].values, 70)
+        avg_mdd = df[df["MDD數值"] >= top_mdd_cutoff]["MDD數值"].mean()
+    else:
+        avg_mdd = df["MDD數值"].mean()
+    
+    st.markdown("### 🌟 整體考卷深度評估總覽")
+    st.caption("💡 **評估加權機制**：考卷難度由 **前 30% 最具鑑別度的核心題幹/文章** 決定（已排除說明與簡單指令雜訊）。")
+    
     c1, c2, c3 = st.columns(3)
-    c1.metric("🎯 綜合預估年級", overall_grade_str)
-    c2.metric("📏 總字數", f"{total_chars} 字")
-    c3.metric("🧠 平均依存距離 (MDD)", f"{avg_mdd:.2f}")
+    c1.metric("🎯 考卷綜合預估年級", overall_grade_str)
+    c2.metric("📏 採樣有效字數", f"{total_chars} 字")
+    c3.metric("🧠 核心語句平均 MDD", f"{avg_mdd:.2f}")
     st.divider()
     
     display_df = df.drop(columns=["分數_hidden"])
-    return display_df, avg_score, total_chars, avg_mdd
+    return display_df, overall_score, total_chars, avg_mdd
 
 def render_statistics_charts(df: pd.DataFrame):
-    st.markdown("### 📊 多句分析統計圖表")
+    st.markdown("### 📊 考卷難度分布與句式視覺化")
     col1, col2, col3 = st.columns(3)
     
     grade_counts = df["預估適用年級"].value_counts().reset_index()
     grade_counts.columns = ["年級", "題數"]
     fig_grade = px.pie(grade_counts, names="年級", values="題數", hole=0.4, 
-                       title="預估適用年級占比", 
+                       title="採樣句年級分布占比", 
                        color_discrete_sequence=px.colors.qualitative.Pastel)
     fig_grade.update_traces(textposition='inside', textinfo='percent+label')
     fig_grade.update_layout(showlegend=False)
@@ -438,8 +504,7 @@ with st.sidebar:
 st.title("📚 台灣中小學與高中試題難度檢測系統")
 st.caption(f"目前分析學科模式：**{subject}** (涵蓋國小低年級至高中或以上程度)")
 
-# 🌟 新增第三個頁籤：整份考題分析
-tab1, tab2, tab3 = st.tabs(["✍️ 單句分析", "📋 多句分析", "📄 整份考題分析 (自動降噪)"])
+tab1, tab2, tab3 = st.tabs(["✍️ 單句分析", "📋 多句分析", "📄 整份考題分析 (智慧降噪)"])
 
 # --- TAB 1: 單句檢測 ---
 with tab1:
@@ -481,7 +546,7 @@ with tab1:
                     ]
                 }, use_container_width=True)
 
-# --- TAB 2: 批次查詢 ---
+# --- TAB 2: 多句批次查詢 ---
 with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
@@ -498,19 +563,19 @@ with tab2:
                 if show_charts: render_statistics_charts(display_df)
                 if show_table: st.dataframe(display_df, use_container_width=True)
 
-# --- TAB 3: 整份考題分析 (降噪與智慧篩選) ---
+# --- TAB 3: 整份考題分析 (智慧降噪與 Top 30% 鑑別度加權) ---
 with tab3:
     st.markdown("### 🧹 考題自動雜訊過濾與深度檢測")
-    st.info("💡 **運作原理**：整份考題常包含題號、配分、填空符號與極短選項。本模式會自動過濾雜訊，僅採樣**字數足夠且具完整閱讀意義**的句段進行分析，避免評分被拉低。")
+    st.info("💡 **全卷檢測防稀釋原理**：\n1. **智慧降噪**：自動過濾「請回答下列問題」、「選出正確的...」等指示句、大題標頭與括號，避免低年級指示句拉低難度。\n2. **Top 30% 鑑別度加權**：依據測驗學原理，採考卷中最具鑑別度的前 30% 高難度語句決定整份考卷適用年級。")
     
     col_param1, col_param2 = st.columns(2)
     with col_param1:
-        min_char_limit = st.slider("📏 採樣句數最低字數門檻", min_value=8, max_value=30, value=14, step=2, help="小於此字數的非完整句或配分說明將被自動忽略。")
+        min_char_limit = st.slider("📏 採樣句數最低字數門檻", min_value=8, max_value=30, value=14, step=2, help="小於此字數的無意義短句或配分說明將被自動忽略。")
     
     raw_exam_paper = st.text_area(
         "請貼上整份考題文字：",
         height=320,
-        placeholder="請在此直接貼上完整的考題內文（包含題號、改錯字、閱讀測驗等混合內容）..."
+        placeholder="請在此直接貼上完整的考題內文（包含題號、改錯字、閱讀測驗、選擇題等混合內容）..."
     )
     
     if st.button("🔍 雜訊過濾並開始分析考題", type="primary"):
@@ -518,27 +583,33 @@ with tab3:
         if not exam_input:
             st.warning("⚠️ 請輸入考題內容！")
         else:
-            with st.spinner("正在進行文本降噪與智慧分割..."):
-                # 執行清洗
-                extracted_sentences = sanitize_exam_paper(exam_input, min_length=min_char_limit)
+            with st.spinner("正在進行文本降噪、結構切割與深度特徵提取..."):
+                # 執行進階清洗
+                extracted_sentences, filtered_noise = sanitize_exam_paper(exam_input, min_length=min_char_limit)
                 
             if not extracted_sentences:
                 st.error("❌ 找不到符合字數門檻的有效句子，請嘗試降低採樣字數門檻！")
             else:
-                st.success(f"✅ 成功從考題中過濾雜訊，並擷取出 **{len(extracted_sentences)}** 個代表性有效語句進行檢測！")
+                st.success(f"✅ 成功從考題中過濾雜訊，擷取出 **{len(extracted_sentences)}** 個具代表性的有效試題語句！")
                 
                 # 執行批次分析
                 res_df = run_batch_analysis(extracted_sentences, nlp, model, current_term_set)
                 st.divider()
                 
-                display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df)
+                # 採用 Top 30% 鑑別度加權渲染
+                display_df, overall_score, total_chars, avg_mdd = render_overall_summary(res_df)
                 
                 if show_charts:
                     render_statistics_charts(display_df)
                     
                 if show_table:
-                    st.markdown("### 📝 擷取的有效試題句段檢測明細")
+                    st.markdown("### 📝 擷取之有效試題句段檢測明細")
                     st.dataframe(display_df, use_container_width=True)
+                
+                # 展開顯示被過濾的雜訊，便於調校確認
+                with st.expander("👁️ 檢視被自動過濾的考題雜訊與指示句（點擊展開）"):
+                    st.write(f"共過濾掉 **{len(filtered_noise)}** 個雜訊片段：")
+                    st.json(filtered_noise[:30]) # 展示前30筆
                 
                 st.download_button(
                     "📥 下載整份考題分析報告 CSV", 
