@@ -485,7 +485,7 @@ with tab1:
                     mode = "gauge+number",
                     value = features['mdd'],
                     domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "MDD 依存距離指標 (已含路線 A 校正)<br><span style='font-size:0.8em;color:gray'>數值 ≥ 4.5 屬高中或以上長難句</span>"},
+                    title = {'text': "MDD 依存距離指標<br><span style='font-size:0.8em;color:gray'>數值 ≥ 4.5 屬高中或以上長難句</span>"},
                     gauge = {
                         'axis': {'range': [None, 10.0]},
                         'bar': {'color': "#1f77b4"},
