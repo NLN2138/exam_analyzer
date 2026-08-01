@@ -426,7 +426,7 @@ with st.sidebar:
     else:
         current_term_set = SUBJECT_TERMS.get(subject, set())
 
-st.title("📚 台灣中小學與高中試題難度檢測系統")
+st.title("📚 台灣中小學與高中試題難度檢測系統（雛型）")
 st.caption(f"目前分析學科模式：**{subject}** (涵蓋國小低年級至高中或以上程度)")
 
 tab1, tab2 = st.tabs(["✍️ 單句分析", "📋 多句分析"])
