@@ -613,7 +613,7 @@ with tab1:
                 render_single_sentence_charts(features, predicted_raw_score)
                 
             if show_table:
-                st.subheader("📋 試題特徵明細")
+                st.subheader("📋 特徵明細")
                 st.dataframe({
                     "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "原始 MDD", "修正 MDD"],
                     "數值": [
