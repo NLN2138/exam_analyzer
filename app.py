@@ -161,7 +161,6 @@ DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
 面對團隊合作的意見分歧，我們與其互相爭論誰的點子最好，不如冷靜下來尋找共識。
 現代民主國家設立了權力分立的憲政體制，以免少數掌權者濫用職權而侵害人民的基本權益。"""
 
-
 # ==========================================
 # 1. 頁面基本設定
 # ==========================================
@@ -308,7 +307,7 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
 # ==========================================
 # 3.5 視覺化統計與總覽 UI 繪製邏輯
 # ==========================================
-def render_overall_summary(df: pd.DataFrame) -> pd.DataFrame:
+def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, float]:
     avg_score = df["分數_hidden"].mean()
     overall_grade = max(1, int(round(avg_score)))
     total_chars = int(df["總字數"].sum())
@@ -321,7 +320,8 @@ def render_overall_summary(df: pd.DataFrame) -> pd.DataFrame:
     c3.metric("🧠 平均依存距離 (MDD)", f"{avg_mdd:.2f}")
     st.divider()
     
-    return df.drop(columns=["分數_hidden"])
+    display_df = df.drop(columns=["分數_hidden"])
+    return display_df, avg_score, total_chars, avg_mdd
 
 def render_statistics_charts(df: pd.DataFrame):
     st.markdown("### 📊 批次分析統計圖表")
@@ -399,7 +399,7 @@ with tab1:
     question_text = st.text_area(
         "題目文字", 
         height=130, 
-        placeholder="請輸入單一試題...\n\n若未輸入內容直接點選分析，將自動載入預設範例題。"
+        placeholder=f"請輸入單一試題...\n\n若未輸入內容直接點選分析，將自動載入預設範例題：\n{DEFAULT_SINGLE_Q}"
     )
 
     if st.button("🚀 開始檢測單句", type="primary"):
@@ -476,10 +476,13 @@ with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
     if batch_mode == "📋 貼上多行文字":
+        # ✨ 根據您的要求，將完整的範例題庫直接植入 placeholder
+        placeholder_text = f"請貼上多行試題（每行一題）...\n\n若未輸入內容直接點選分析，將自動載入預設的多句題庫：\n\n{DEFAULT_BATCH_Q}"
+        
         batch_text = st.text_area(
             "每行一題：", 
-            height=250,
-            placeholder="請貼上多行試題（每行一題）...\n\n若未輸入內容直接點選分析，將自動載入預設的多句題庫。"
+            height=280,
+            placeholder=placeholder_text
         )
         if st.button("⚡ 開始批次分析", type="primary"):
             target_batch_text = batch_text.strip()
@@ -495,7 +498,7 @@ with tab2:
                 res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
                 st.divider()
                 
-                display_df = render_overall_summary(res_df)
+                display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df)
                 
                 if show_charts:
                     render_statistics_charts(display_df)
@@ -526,7 +529,7 @@ with tab2:
                         res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
                         st.divider()
                         
-                        display_df = render_overall_summary(res_df)
+                        display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df)
                         
                         if show_charts:
                             render_statistics_charts(display_df)
