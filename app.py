@@ -213,10 +213,12 @@ def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str],
     
     if first_question_match:
         # 找到第一個題目起點，將前面的表頭內容全部截斷並記錄
-        header_text = raw_text[:first_question_match.start()]
+        header_text = raw_text[:first_question_match.start()].strip()
         cleaned_body = raw_text[first_question_match.start():]
-        if header_text.strip():
-            filtered_out.append(f"[試卷表頭區塊已切除] {header_text.strip().replace('\n', ' ')}")
+        if header_text:
+            # 💡 修正點：避免在 f-string {} 內部使用 '\n' 反斜線
+            clean_header_log = header_text.replace('\n', ' ')
+            filtered_out.append(f"[試卷表頭區塊已切除] {clean_header_log}")
     else:
         # 若無明確大題標號，則按行過濾常見表頭特徵
         cleaned_body = raw_text
