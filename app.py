@@ -433,7 +433,7 @@ def render_single_sentence_charts(features: Dict[str, Any], raw_score: float):
             mode = "gauge+number",
             value = min(12.0, max(1.0, raw_score)),
             domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': "難度數值落點 (1-12年級)", 'font': {'size': 16}},
+            title = {'text': "難度數值落點 (1-12年級)", 'font': {'size': 12}},
             gauge = {
                 'axis': {'range': [1, 12], 'tickwidth': 1, 'tickcolor': "darkblue"},
                 'bar': {'color': "#2A648E"},
@@ -474,7 +474,7 @@ def render_single_sentence_charts(features: Dict[str, Any], raw_score: float):
             polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
             showlegend=False,
             height=260,
-            title={'text': "特徵強度多維雷達圖", 'font': {'size': 16}},
+            title={'text': "特徵強度多維雷達圖", 'font': {'size': 12}},
             margin=dict(l=40, r=40, t=40, b=20)
         )
         st.plotly_chart(fig_radar, use_container_width=True)
