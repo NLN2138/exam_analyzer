@@ -4,8 +4,8 @@ import pandas as pd
 import spacy
 import streamlit as st
 import plotly.express as px
-import plotly.graph_objects as go  # [新增] 為了繪製儀表板指標圖
-from typing import List, Dict, Any, Optional
+import plotly.graph_objects as go
+from typing import List, Dict, Any, Optional, Tuple
 
 # ==========================================
 # 0. 靜態常數定義 (容易維護與擴充)
@@ -113,7 +113,8 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
         "vocab_depth": calculate_vocab_depth(doc, term_set)
     }
 
-def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> str:
+# [更新] 回傳 Tuple，包含「區間字串」與「精確原始積分」
+def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[str, float]:
     score = 3.0 
     if ml_model is not None:
         try:
@@ -148,9 +149,11 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> str:
     if features["vocab_depth"] >= 1:
         score += 1.5
 
-    if score >= 4.5: return "5-6 年級 (高年級) 或以上"
-    elif score <= 2.5: return "1-2 年級 (低年級)"
-    else: return "3-4 年級 (中年級)"
+    if score >= 4.5: grade_str = "5-6 年級 (高年級) 或以上"
+    elif score <= 2.5: grade_str = "1-2 年級 (低年級)"
+    else: grade_str = "3-4 年級 (中年級)"
+    
+    return grade_str, score
 
 def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, term_set: set) -> pd.DataFrame:
     results = []
@@ -159,11 +162,13 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
     
     for i, doc in enumerate(nlp_model.pipe(question_list, batch_size=50)):
         feat = extract_features_from_doc(doc, term_set)
-        grade = predict_grade(feat, difficulty_model)
+        # [更新] 接收原始積分
+        grade_str, raw_score = predict_grade(feat, difficulty_model)
         
         results.append({
             "題目內容": feat["text"],
-            "預估適用年級": grade,
+            "預估適用年級": grade_str,
+            "分數_hidden": raw_score,  # 隱藏欄位，用於計算總平均單一年級
             "複句結構與句式": feat["clause_types"],
             "總字數": feat["char_count"],
             "名詞密度": f"{feat['noun_ratio']:.1%}",
@@ -175,13 +180,34 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
     return pd.DataFrame(results)
 
 # ==========================================
-# 3.5 視覺化統計圖表繪製邏輯
+# 3.5 視覺化統計與總覽 UI 繪製邏輯
 # ==========================================
+def render_overall_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """計算並顯示多題檢測的頂端總覽指標，然後回傳移除隱藏分數欄位的 DataFrame"""
+    # 1. 綜合預估年級 (平均積分四捨五入，保底 1 年級)
+    avg_score = df["分數_hidden"].mean()
+    overall_grade = max(1, int(round(avg_score)))
+    
+    # 2. 總字數
+    total_chars = int(df["總字數"].sum())
+    
+    # 3. 平均依存距離
+    avg_mdd = df["MDD數值"].mean()
+    
+    st.markdown("### 🌟 整體題庫評估總覽")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("🎯 綜合預估年級", f"{overall_grade} 年級")
+    c2.metric("📏 總字數", f"{total_chars} 字")
+    c3.metric("🧠 平均依存距離 (MDD)", f"{avg_mdd:.2f}")
+    st.divider()
+    
+    # 移除隱藏欄位，避免顯示在明細表與下載的 CSV 中
+    return df.drop(columns=["分數_hidden"])
+
 def render_statistics_charts(df: pd.DataFrame):
-    st.markdown("### 📊 批次分析統計儀表板")
+    st.markdown("### 📊 批次分析統計圖表")
     col1, col2, col3 = st.columns(3)
     
-    # 1. 預估年級占比
     grade_counts = df["預估適用年級"].value_counts().reset_index()
     grade_counts.columns = ["年級", "題數"]
     fig_grade = px.pie(grade_counts, names="年級", values="題數", hole=0.4, 
@@ -191,7 +217,6 @@ def render_statistics_charts(df: pd.DataFrame):
     fig_grade.update_layout(showlegend=False)
     col1.plotly_chart(fig_grade, use_container_width=True)
     
-    # 2. 句式占比
     clause_series = df["複句結構與句式"].str.split(", ").explode()
     clause_counts = clause_series.value_counts().reset_index()
     clause_counts.columns = ["句式", "出現次數"]
@@ -202,7 +227,6 @@ def render_statistics_charts(df: pd.DataFrame):
     fig_clause.update_layout(showlegend=False)
     col2.plotly_chart(fig_clause, use_container_width=True)
     
-    # 3. MDD 區間分布
     bins = [0, 1, 2, 3, 4, 5, 100]
     labels = ['0-1', '1-2', '2-3', '3-4', '4-5', '5以上']
     df_mdd = df.copy()
@@ -238,9 +262,8 @@ with st.sidebar:
     subject = st.selectbox("學科", ["全部學科", "國語文", "數學", "社會", "自然"])
     
     st.markdown("### 👁️ 介面顯示設定")
-    # [新增] 單題檢測的顯示控制選項
-    show_table = st.checkbox("顯示單題特徵明細表", value=True)
-    show_single_charts = st.checkbox("顯示單題圖表視覺化", value=True)
+    show_table = st.checkbox("顯示資料明細表", value=True)
+    show_charts = st.checkbox("顯示視覺化圖表", value=True)
     
     if subject == "全部學科":
         current_term_set = ALL_SUBJECT_TERMS
@@ -263,11 +286,13 @@ with tab1:
             with st.spinner("分析中..."):
                 doc = nlp(question_text)
                 features = extract_features_from_doc(doc, current_term_set)
-                predicted_grade = predict_grade(features, model)
+                # 解構取出預估區間與原始分數
+                predicted_grade_str, predicted_raw_score = predict_grade(features, model)
                 
+                # 若要單題也顯示精確年級，可利用 predicted_raw_score，這裡保持原設計區間
                 st.divider()
                 cols = st.columns(4)
-                cols[0].metric("🎯 預估年級", str(predicted_grade))
+                cols[0].metric("🎯 預估年級", predicted_grade_str)
                 cols[1].metric("📏 總字數", f"{features['char_count']} 字")
                 cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}")
                 cols[3].metric("🔗 複句結構", features["clause_types"])
@@ -284,12 +309,10 @@ with tab1:
                         ]
                     }, use_container_width=True)
 
-                # [新增] 單題檢測的視覺化圖表
-                if show_single_charts:
+                if show_charts:
                     st.subheader("📊 單題視覺化圖表")
                     col_chart1, col_chart2 = st.columns(2)
                     
-                    # 圖表 1：MDD 依存距離雷達指標圖
                     fig_mdd_gauge = go.Figure(go.Indicator(
                         mode = "gauge+number",
                         value = features['mdd'],
@@ -299,15 +322,14 @@ with tab1:
                             'axis': {'range': [None, 6]},
                             'bar': {'color': "#1f77b4"},
                             'steps' : [
-                                {'range': [0, 2.6], 'color': "#d9f0d3"},    # 綠色：安全簡單
-                                {'range': [2.6, 4.0], 'color': "#fff2ae"},  # 黃色：中等
-                                {'range': [4.0, 6.0], 'color': "#fbb4ae"}   # 紅色：困難
+                                {'range': [0, 2.6], 'color': "#d9f0d3"},    
+                                {'range': [2.6, 4.0], 'color': "#fff2ae"},  
+                                {'range': [4.0, 6.0], 'color': "#fbb4ae"}   
                             ],
                         }
                     ))
                     col_chart1.plotly_chart(fig_mdd_gauge, use_container_width=True)
                     
-                    # 圖表 2：詞性結構占比圓餅圖
                     other_ratio = max(0, 1.0 - features['noun_ratio'] - features['verb_ratio'])
                     df_pos = pd.DataFrame({
                         "詞性": ["名詞與專有名詞", "動詞", "其他附屬詞"],
@@ -326,17 +348,23 @@ with tab2:
     
     if batch_mode == "📋 貼上多行文字":
         batch_text = st.text_area("每行一題：", height=250)
-        if st.button("⚡ 開始批次分析與產生圖表", type="primary"):
+        if st.button("⚡ 開始批次分析", type="primary"):
             q_list = [line.strip() for line in batch_text.split("\n") if line.strip()]
             if q_list:
                 res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
-                
                 st.divider()
-                render_statistics_charts(res_df)
                 
-                st.markdown("### 📝 詳細題目檢測報表")
-                st.dataframe(res_df, use_container_width=True)
-                st.download_button("📥 下載 CSV 報告", res_df.to_csv(index=False).encode("utf-8-sig"), "文字批次報告.csv", "text/csv")
+                # [新增] 渲染頂端總覽指標，並回傳乾淨(無分數_hidden)的 DataFrame
+                display_df = render_overall_summary(res_df)
+                
+                if show_charts:
+                    render_statistics_charts(display_df)
+                
+                if show_table:
+                    st.markdown("### 📝 詳細題目檢測報表")
+                    st.dataframe(display_df, use_container_width=True)
+                
+                st.download_button("📥 下載 CSV 報告", display_df.to_csv(index=False).encode("utf-8-sig"), "批次檢測報告.csv", "text/csv")
             else:
                 st.warning("請貼上有效的題目內容！")
                 
@@ -354,14 +382,20 @@ with tab2:
                     q_list = q_list[q_list != ""].tolist()
                     
                     st.info(f"成功擷取 {len(q_list)} 題，準備分析。")
-                    if st.button("⚡ 開始批次分析與產生圖表", type="primary"):
+                    if st.button("⚡ 開始批次分析", type="primary"):
                         res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
-                        
                         st.divider()
-                        render_statistics_charts(res_df)
                         
-                        st.markdown("### 📝 詳細題目檢測報表")
-                        st.dataframe(res_df, use_container_width=True)
-                        st.download_button("📥 下載結果", res_df.to_csv(index=False).encode("utf-8-sig"), "檔案分析報告.csv", "text/csv")
+                        # [新增] 渲染頂端總覽指標
+                        display_df = render_overall_summary(res_df)
+                        
+                        if show_charts:
+                            render_statistics_charts(display_df)
+                        
+                        if show_table:
+                            st.markdown("### 📝 詳細題目檢測報表")
+                            st.dataframe(display_df, use_container_width=True)
+                        
+                        st.download_button("📥 下載結果", display_df.to_csv(index=False).encode("utf-8-sig"), "檔案分析報告.csv", "text/csv")
             except Exception as e:
                 st.error(f"讀取失敗：{e}")
