@@ -392,9 +392,9 @@ with st.sidebar:
 st.title("📚 台灣中小學試題句子難度檢測系統（雛形）")
 st.caption(f"目前分析學科模式：**{subject}** (將依據對應學科之進階詞庫進行難度加權)")
 
-tab1, tab2 = st.tabs(["✍️ 單題檢測與複句分析", "📋 批次多題檢測與統計儀表板"])
+tab1, tab2 = st.tabs(["✍️ 單句分析", "📋 多句分析"])
 
-# --- TAB 1: 單題檢測 ---
+# --- TAB 1: 單句檢測 ---
 with tab1:
     question_text = st.text_area(
         "題目文字", 
@@ -402,13 +402,13 @@ with tab1:
         placeholder="請輸入單一試題...\n\n若未輸入內容直接點選分析，將自動載入預設範例題。"
     )
 
-    if st.button("🚀 開始檢測單題", type="primary"):
+    if st.button("🚀 開始檢測單句", type="primary"):
         target_text = question_text.strip()
         
-        # ✨ 若沒有填寫任何東西，套用預設的單題範例
+        # ✨ 若沒有填寫任何東西，套用預設的單句範例
         if not target_text:
             target_text = DEFAULT_SINGLE_Q
-            st.info("💡 您未輸入內容，已自動載入**預設單題**進行分析。")
+            st.info("💡 您未輸入內容，已自動載入**預設單句**進行分析。")
 
         with st.spinner("分析中..."):
             doc = nlp(target_text)
@@ -439,7 +439,7 @@ with tab1:
                 }, use_container_width=True)
 
             if show_charts:
-                st.subheader("📊 單題視覺化圖表")
+                st.subheader("📊 單句視覺化圖表")
                 col_chart1, col_chart2 = st.columns(2)
                 
                 fig_mdd_gauge = go.Figure(go.Indicator(
@@ -479,7 +479,7 @@ with tab2:
         batch_text = st.text_area(
             "每行一題：", 
             height=250,
-            placeholder="請貼上多行試題（每行一題）...\n\n若未輸入內容直接點選分析，將自動載入預設的多題題庫。"
+            placeholder="請貼上多行試題（每行一題）...\n\n若未輸入內容直接點選分析，將自動載入預設的多句題庫。"
         )
         if st.button("⚡ 開始批次分析", type="primary"):
             target_batch_text = batch_text.strip()
