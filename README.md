@@ -138,7 +138,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 ### Theoretical Frameworks & Curriculum References
 * **Taiwan 108 Curriculum Guidelines**: Ministry of Education, Taiwan (2018). *General Curriculum Guidelines for 12-Year Basic Education*.
-* **Mean Dependency Distance (MDD)**: Liu, H.-T. (2008) *Dependency Distance as a Metric of Language Comprehension Difficulty*. The Journal of Cognitive Science 9: 159-191.
+* **Mean Dependency Distance (MDD)**: Liu, H. (2008). Dependency distance as a metric of language comprehension difficulty. *Journal of Cognitive Science*, *9*(2), 159–191.
 
 ```
 
