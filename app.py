@@ -196,23 +196,68 @@ def load_difficulty_model():
     return None
 
 # ==========================================
-# 3. 試題清洗與拆分引擎 (智慧降噪)
+# 3. 試題清洗與拆分引擎 (智慧降噪 + 深度表頭排除)
 # ==========================================
 def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str], List[str]]:
-    cleaned = re.sub(r'[(（][^()（）]*每[題字格分].*?[)）]', '', raw_text)
+    filtered_out = []
+    
+    # -------------------------------------------------------------
+    # 階段 1：表頭區塊智慧切除 (Header Truncation)
+    # -------------------------------------------------------------
+    # 尋找第一個大題標題或題號開頭（例如：一、、壹、、1.、(1)、第1題）
+    first_question_match = re.search(
+        r'(^\s*(?:[一二三四五六七八九十壹貳參肆伍]|\d+)\s*[\.、．\)])|(^\s*一\s*[\u4e00-\u9fa5]+[：:])', 
+        raw_text, 
+        flags=re.MULTILINE
+    )
+    
+    if first_question_match:
+        # 找到第一個題目起點，將前面的表頭內容全部截斷並記錄
+        header_text = raw_text[:first_question_match.start()]
+        cleaned_body = raw_text[first_question_match.start():]
+        if header_text.strip():
+            filtered_out.append(f"[試卷表頭區塊已切除] {header_text.strip().replace('\n', ' ')}")
+    else:
+        # 若無明確大題標號，則按行過濾常見表頭特徵
+        cleaned_body = raw_text
+
+    # -------------------------------------------------------------
+    # 階段 2：正規表示式細部清理
+    # -------------------------------------------------------------
+    # 1. 移除殘餘配分說明，例如：(每題4分，共100分)
+    cleaned = re.sub(r'[(（][^()（）]*每[題字格分].*?[)）]', '', cleaned_body)
+    
+    # 2. 移除個人資訊行（班級、姓名、座號等）
+    cleaned = re.sub(r'(?:班級|學號|座號|姓名|分數|得分|閱卷老師|家長簽章)\s*[:：_＿\s].*', '', cleaned)
+    cleaned = re.sub(r'(?:市立|縣立|國中|高中|國民小學|學年度|評量試卷|期中|期末).*', '', cleaned)
+    
+    # 3. 移除大題標頭（例如："一、 基礎題"）與題號前綴
     cleaned = re.sub(r'[一二三四五六七八九十]+\s*[\u4e00-\u9fa5]+[：:]', '', cleaned)
     cleaned = re.sub(r'^\s*[\d\w]+\s*[\.、．]', '', cleaned, flags=re.MULTILINE)
     cleaned = re.sub(r'[↓｜|]', '', cleaned)
     cleaned = re.sub(r'\([ 0-9A-Za-z\s]*\)|（[ 0-9A-Za-z\s]*）', '', cleaned)
     
+    # -------------------------------------------------------------
+    # 階段 3：句子拆分與逐句驗證
+    # -------------------------------------------------------------
     raw_sentences = re.split(r'[\n。！？!?]', cleaned)
     valid_sentences = []
-    filtered_out = []
+    
+    # 表頭相關的黑名單關鍵字（防止漏網之魚）
+    HEADER_KEYWORDS = [
+        "學年度", "期末", "期中", "定期評量", "評量試卷", "綜合學科",
+        "班級", "座號", "姓名", "得分", "配分", "總分", "國民中學", "國民小學"
+    ]
     
     for s in raw_sentences:
         s_strip = s.strip()
         s_strip = re.sub(r'^\s*\d+\s*', '', s_strip)
         if not s_strip:
+            continue
+            
+        # 表頭關鍵字殘餘過濾
+        if any(kw in s_strip for kw in HEADER_KEYWORDS):
+            filtered_out.append(f"[表頭殘餘資訊] {s_strip}")
             continue
             
         if len(s_strip) < min_length:
