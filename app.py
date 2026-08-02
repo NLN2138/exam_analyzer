@@ -547,7 +547,7 @@ def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, 
     else:
         avg_mdd = df["MDD數值"].mean()
     
-    st.markdown("### 🌟 整體考卷深度評估總覽")
+    st.markdown("### 🌟 整體評估總覽")
     st.caption("💡 **評估加權機制**：考卷難度採 **前 50% 最具鑑別度的核心語句/長文** 進行加權計算（已過濾無意義結構與指示雜訊）。")
     
     c1, c2, c3 = st.columns(3)
@@ -560,7 +560,7 @@ def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, 
     return display_df, overall_score, total_chars, avg_mdd
 
 def render_statistics_charts(df: pd.DataFrame):
-    st.markdown("### 📊 考卷難度分布與句式視覺化")
+    st.markdown("### 📊 難度特徵分析儀表板")
     col1, col2, col3 = st.columns(3)
     
     grade_counts = df["預估適用年級"].value_counts().reset_index()
