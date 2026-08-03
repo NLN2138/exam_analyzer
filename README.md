@@ -1,4 +1,4 @@
-# 📚 Taiwan K-6 Exam Question Sentence Difficulty Assessment System (Prototype)
+# 📚 Taiwan Grade 1-12 Exam Question Sentence Difficulty Assessment System (Prototype)
 
 An NLP and Machine Learning powered web application built with **Streamlit** to analyze and evaluate the difficulty level of Taiwan K-6 (elementary school) exam question sentences. 
 
