@@ -28,8 +28,12 @@ cd YOUR_REPOSITORY
 python -m venv venv
 # Windows: venv\Scripts\activate | macOS/Linux: source venv/bin/activate
 
+---
+
 ### 2. Install & Run
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
+```
+
 
