@@ -1,7 +1,6 @@
-### 1. Taiwan K-12 Exam Text Difficulty Analyzer
+# 📚 Taiwan K-12 Exam Text Difficulty Analyzer
 
-```
-**An automated NLP system for assessing readability and syntactic complexity (MDD) in K-12 exam questions.**
+> **An automated NLP system for assessing readability and syntactic complexity (MDD) in K-12 exam questions.**
 
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.37+-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)](https://www.python.org/)
@@ -28,29 +27,3 @@ cd YOUR_REPOSITORY
 
 python -m venv venv
 # Windows: venv\Scripts\activate | macOS/Linux: source venv/bin/activate
-
-```
-
-### 2. Install & Run
-
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-
-```
-
----
-
-## ☁️ Deployment
-
-Optimized for **Streamlit Community Cloud**. Simply connect your GitHub repo and set `app.py` as the entry point—the pre-configured `requirements.txt` handles the spaCy Chinese NLP model installation automatically.
-
----
-
-## 📄 License
-
-Distributed under the MIT License.
-
-```
-
-```
