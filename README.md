@@ -1,7 +1,7 @@
 ### 1. Taiwan K-12 Exam Text Difficulty Analyzer
 
-```markdown
-> **An automated NLP system for assessing readability and syntactic complexity (MDD) in K-12 exam questions.**
+```
+**An automated NLP system for assessing readability and syntactic complexity (MDD) in K-12 exam questions.**
 
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.37+-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)](https://www.python.org/)
