@@ -1,5 +1,3 @@
-Here is the complete `README.md` content in English, formatted and ready for you to copy and paste directly into your GitHub repository:
-
 ```markdown
 # 📚 Taiwan K-12 Exam Text Difficulty Analyzer
 
