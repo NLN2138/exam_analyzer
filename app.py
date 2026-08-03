@@ -361,19 +361,19 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     elif 26 <= char_len <= 45: score += 0.5
     elif 46 <= char_len <= 70: score += 1.0     
     elif 71 <= char_len <= 100: score += 1.5    
-    elif char_len > 100: score += 2.5           
+    elif char_len > 100: score += 2.5            
     
     mdd = features["mdd"]
     if mdd < 2.0: score -= 1.0                  
     elif 2.0 <= mdd < 2.8: score -= 0.5
-    elif 3.5 <= mdd < 4.2: score += 0.5         
-    elif 4.2 <= mdd < 5.0: score += 1.2         
-    elif mdd >= 5.0: score += 2.0               
+    elif 3.5 <= mdd < 4.2: score += 0.5          
+    elif 4.2 <= mdd < 5.0: score += 1.2          
+    elif mdd >= 5.0: score += 2.0                
 
     noun_r = features["noun_ratio"]
     if noun_r < 0.20: score -= 0.5
     elif 0.35 <= noun_r < 0.45: score += 0.5
-    elif noun_r >= 0.45: score += 1.2           
+    elif noun_r >= 0.45: score += 1.2            
 
     complex_clauses = ["進階論述句", "目的複句", "選擇複句", "遞進複句", "推斷複句", "假轉複句", "取捨複句"]
     if any(c in features["clause_types"] for c in complex_clauses):
@@ -587,9 +587,55 @@ with st.sidebar:
     else:
         current_term_set = SUBJECT_TERMS.get(subject, set())
 
-st.title("📚 台灣中小學試題語句難度檢測系統 v1.0（雛形）")
-st.caption(f"目前分析學科模式：**{subject}**")
 
+# ==========================================
+# 7. 置頂固定標題列設計
+# ==========================================
+st.markdown(
+    f"""
+    <style>
+    /* 減少 Streamlit 預設過多的頂部留白 */
+    .block-container {{
+        padding-top: 2rem !important;
+    }}
+    
+    /* 找到包覆標題的容器，並將它設定為 Sticky */
+    div[data-testid="stVerticalBlock"] > div:has(.sticky-header),
+    div.element-container:has(.sticky-header) {{
+        position: sticky;
+        top: 2.875rem; 
+        background-color: var(--background-color); 
+        z-index: 999; 
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid var(--secondary-background-color); 
+    }}
+    
+    /* 微調標題文字樣式 */
+    .sticky-header h1 {{
+        margin: 0; 
+        padding-bottom: 0.2rem; 
+        font-size: 2.25rem; 
+        font-weight: 700;
+    }}
+    .sticky-header p {{
+        margin: 0; 
+        font-size: 1rem; 
+        color: var(--text-color);
+        opacity: 0.8;
+    }}
+    </style>
+    
+    <div class="sticky-header">
+        <h1>📚 台灣中小學試題語句難度檢測系統 v1.0（雛形）</h1>
+        <p>目前分析學科模式：<strong>{subject}</strong></p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# 渲染頁籤
 tab1, tab2, tab3 = st.tabs(["✍️ 單句分析", "📋 多句分析", "📄 試卷分析 (智慧降噪)"])
 
 # --- TAB 1: 單句檢測 ---
