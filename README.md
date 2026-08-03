@@ -31,7 +31,7 @@ python -m venv venv
 ---
 ---
 
-##  🚀  2. Install & Run
+> ##  🚀  2. Install & Run
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
