@@ -169,6 +169,59 @@ DEFAULT_EXAM_PAPER = """臺北市立OO國民中學 113 學年度第一學期 綜
 """
 
 # ==========================================
+# 0.5 台灣學生試題 MDD 常模統計資料
+# ==========================================
+MDD_NORM_DATA = [
+    {"學制": "國小", "科目": "國語", "年級": "1年級", "區域": "六都", "平均MDD": 3.792, "標準差": 1.009},
+    {"學制": "國小", "科目": "國語", "年級": "1年級", "區域": "非六都", "平均MDD": 3.745, "標準差": 1.114},
+    {"學制": "國小", "科目": "國語", "年級": "2年級", "區域": "六都", "平均MDD": 3.270, "標準差": 1.135},
+    {"學制": "國小", "科目": "國語", "年級": "2年級", "區域": "非六都", "平均MDD": 3.537, "標準差": 0.980},
+    {"學制": "國小", "科目": "國語", "年級": "3年級", "區域": "六都", "平均MDD": 3.489, "標準差": 0.933},
+    {"學制": "國小", "科目": "國語", "年級": "3年級", "區域": "非六都", "平均MDD": 3.287, "標準差": 0.992},
+    {"學制": "國小", "科目": "國語", "年級": "4年級", "區域": "六都", "平均MDD": 3.328, "標準差": 0.919},
+    {"學制": "國小", "科目": "國語", "年級": "4年級", "區域": "非六都", "平均MDD": 3.329, "標準差": 0.919},
+    {"學制": "國小", "科目": "國語", "年級": "5年級", "區域": "六都", "平均MDD": 3.499, "標準差": 0.767},
+    {"學制": "國小", "科目": "國語", "年級": "5年級", "區域": "非六都", "平均MDD": 3.492, "標準差": 0.763},
+    {"學制": "國小", "科目": "國語", "年級": "6年級", "區域": "六都", "平均MDD": 3.578, "標準差": 0.838},
+    {"學制": "國小", "科目": "國語", "年級": "6年級", "區域": "非六都", "平均MDD": 3.356, "標準差": 0.874},
+    {"學制": "國小", "科目": "自然", "年級": "3年級", "區域": "六都", "平均MDD": 3.427, "標準差": 0.815},
+    {"學制": "國小", "科目": "自然", "年級": "3年級", "區域": "非六都", "平均MDD": 3.297, "標準差": 0.757},
+    {"學制": "國小", "科目": "自然", "年級": "4年級", "區域": "六都", "平均MDD": 3.565, "標準差": 0.695},
+    {"學制": "國小", "科目": "自然", "年級": "4年級", "區域": "非六都", "平均MDD": 3.372, "標準差": 0.769},
+    {"學制": "國小", "科目": "自然", "年級": "5年級", "區域": "六都", "平均MDD": 3.673, "標準差": 0.722},
+    {"學制": "國小", "科目": "自然", "年級": "5年級", "區域": "非六都", "平均MDD": 3.725, "標準差": 0.742},
+    {"學制": "國小", "科目": "自然", "年級": "6年級", "區域": "六都", "平均MDD": 3.574, "標準差": 0.657},
+    {"學制": "國小", "科目": "自然", "年級": "6年級", "區域": "非六都", "平均MDD": 3.365, "標準差": 0.708},
+    {"學制": "國小", "科目": "社會", "年級": "3年級", "區域": "六都", "平均MDD": 3.444, "標準差": 0.676},
+    {"學制": "國小", "科目": "社會", "年級": "3年級", "區域": "非六都", "平均MDD": 3.315, "標準差": 0.728},
+    {"學制": "國小", "科目": "社會", "年級": "4年級", "區域": "六都", "平均MDD": 3.644, "標準差": 0.714},
+    {"學制": "國小", "科目": "社會", "年級": "4年級", "區域": "非六都", "平均MDD": 3.509, "標準差": 0.793},
+    {"學制": "國小", "科目": "社會", "年級": "5年級", "區域": "六都", "平均MDD": 3.653, "標準差": 0.768},
+    {"學制": "國小", "科目": "社會", "年級": "5年級", "區域": "非六都", "平均MDD": 3.478, "標準差": 0.729},
+    {"學制": "國小", "科目": "社會", "年級": "6年級", "區域": "六都", "平均MDD": 3.755, "標準差": 0.735},
+    {"學制": "國小", "科目": "社會", "年級": "6年級", "區域": "非六都", "平均MDD": 3.494, "標準差": 0.760},
+    {"學制": "國中", "科目": "國文", "年級": "7年級", "區域": "六都", "平均MDD": 4.207, "標準差": 0.615},
+    {"學制": "國中", "科目": "國文", "年級": "7年級", "區域": "非六都", "平均MDD": 4.169, "標準差": 0.858},
+    {"學制": "國中", "科目": "國文", "年級": "8年級", "區域": "六都", "平均MDD": 4.193, "標準差": 0.596},
+    {"學制": "國中", "科目": "國文", "年級": "8年級", "區域": "非六都", "平均MDD": 4.261, "標準差": 0.642},
+    {"學制": "國中", "科目": "國文", "年級": "9年級", "區域": "六都", "平均MDD": 4.247, "標準差": 0.586},
+    {"學制": "國中", "科目": "國文", "年級": "9年級", "區域": "非六都", "平均MDD": 4.308, "標準差": 0.699},
+    {"學制": "國中", "科目": "社會", "年級": "7年級", "區域": "六都", "平均MDD": 4.301, "標準差": 0.654},
+    {"學制": "國中", "科目": "社會", "年級": "7年級", "區域": "非六都", "平均MDD": 4.109, "標準差": 0.629},
+    {"學制": "國中", "科目": "社會", "年級": "8年級", "區域": "六都", "平均MDD": 4.272, "標準差": 0.489},
+    {"學制": "國中", "科目": "社會", "年級": "8年級", "區域": "非六都", "平均MDD": 4.172, "標準差": 0.661},
+    {"學制": "國中", "科目": "社會", "年級": "9年級", "區域": "六都", "平均MDD": 4.333, "標準差": 0.508},
+    {"學制": "國中", "科目": "社會", "年級": "9年級", "區域": "非六都", "平均MDD": 4.415, "標準差": 0.831},
+    {"學制": "高中", "科目": "國文", "年級": "10年級", "區域": "六都", "平均MDD": 4.195, "標準差": 0.603},
+    {"學制": "高中", "科目": "國文", "年級": "10年級", "區域": "非六都", "平均MDD": 3.864, "標準差": 0.971},
+    {"學制": "高中", "科目": "國文", "年級": "11年級", "區域": "六都", "平均MDD": 4.308, "標準差": 0.517},
+    {"學制": "高中", "科目": "國文", "年級": "11年級", "區域": "非六都", "平均MDD": 3.817, "標準差": 0.861},
+    {"學制": "高中", "科目": "國文", "年級": "12年級", "區域": "六都", "平均MDD": 4.169, "標準差": 0.640},
+    {"學制": "高中", "科目": "國文", "年級": "12年級", "區域": "非六都", "平均MDD": 3.968, "標準差": 0.801}
+]
+df_mdd_norm = pd.DataFrame(MDD_NORM_DATA)
+
+# ==========================================
 # 1. 頁面設定
 # ==========================================
 st.set_page_config(
@@ -382,7 +435,7 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     v_depth = features["vocab_depth"]
     if v_depth == 1: score += 0.5
     elif v_depth == 2: score += 1.0
-    elif v_depth >= 3: score += 2.0             
+    elif v_depth >= 3: score += 2.0              
     
     if v_depth >= 5 and score < 8.5:
         score = max(score, 8.5)
@@ -492,7 +545,7 @@ def render_single_sentence_charts(features: Dict[str, Any], raw_score: float):
         )
         st.plotly_chart(fig_radar, use_container_width=True)
 
-def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, float]:
+def render_overall_summary(df: pd.DataFrame, norm_mean: Optional[float], norm_std: Optional[float]) -> Tuple[pd.DataFrame, float, int, float]:
     scores = df["分數_hidden"].values
     if len(scores) >= 4:
         top_50_cutoff = np.percentile(scores, 50)
@@ -516,7 +569,33 @@ def render_overall_summary(df: pd.DataFrame) -> Tuple[pd.DataFrame, float, int, 
     c1, c2, c3 = st.columns(3)
     c1.metric("🎯 考卷綜合預估年級", overall_grade_str)
     c2.metric("📏 採樣有效字數", f"{total_chars} 字")
-    c3.metric("🧠 核心語句平均 MDD", f"{avg_mdd:.2f}")
+    
+    # 加入常模比對邏輯
+    if norm_mean is not None and norm_std is not None:
+        mdd_diff = avg_mdd - norm_mean
+        z_score = mdd_diff / norm_std
+        
+        # 判斷難易度區間 (+- 0.5個標準差視為適中)
+        if z_score > 0.5:
+            delta_color = "inverse"
+            difficulty_label = "偏難"
+        elif z_score < -0.5:
+            delta_color = "normal"
+            difficulty_label = "偏易"
+        else:
+            delta_color = "off"
+            difficulty_label = "適中"
+            
+        c3.metric(
+            label="🧠 核心語句平均 MDD", 
+            value=f"{avg_mdd:.2f}", 
+            delta=f"與 {ref_region}{ref_grade} 常模比: {difficulty_label} ({mdd_diff:+.2f})",
+            delta_color=delta_color,
+            help=f"常模平均: {norm_mean:.2f}, 標準差: {norm_std:.2f}"
+        )
+    else:
+        c3.metric("🧠 核心語句平均 MDD", f"{avg_mdd:.2f}", help="目前選擇的科目或年級無常模資料")
+        
     st.divider()
     
     display_df = df.drop(columns=["分數_hidden"])
@@ -576,7 +655,25 @@ with st.sidebar:
         
     st.divider()
     
-    subject = st.selectbox("學科", ["全部學科", "國語文", "數學", "社會", "自然"])
+    st.markdown("### 🎯 科目與參照常模設定")
+    subject = st.selectbox("分析學科", ["全部學科", "國語文", "數學", "社會", "自然"])
+    
+    # --- 新增：常模對標選擇器 ---
+    st.markdown("**(以下選項用於比對試卷難度落點)**")
+    ref_school = st.selectbox("對標學制", ["國小", "國中", "高中"])
+    
+    # 依據學制動態生成年級選項
+    if ref_school == "國小":
+        grade_options = [f"{i}年級" for i in range(1, 7)]
+    elif ref_school == "國中":
+        grade_options = [f"{i}年級" for i in range(7, 10)]
+    else:
+        grade_options = [f"{i}年級" for i in range(10, 13)]
+        
+    ref_grade = st.selectbox("對標年級", grade_options)
+    ref_region = st.selectbox("對標區域", ["六都", "非六都"])
+    
+    st.divider()
     
     st.markdown("### 👁️ 介面顯示設定")
     show_table = st.checkbox("顯示資料明細表", value=True)
@@ -587,6 +684,27 @@ with st.sidebar:
     else:
         current_term_set = SUBJECT_TERMS.get(subject, set())
 
+# --- 新增：常模過濾邏輯 ---
+# 處理科目名稱對應 (常模資料中，國高中稱為國文，國小稱為國語)
+mapped_subject = subject
+if subject in ["國語文", "全部學科"]:
+    mapped_subject = "國語" if ref_school == "國小" else "國文"
+
+# 查找對應的常模資料
+norm_row = df_mdd_norm[
+    (df_mdd_norm['學制'] == ref_school) & 
+    (df_mdd_norm['科目'] == mapped_subject) & 
+    (df_mdd_norm['年級'] == ref_grade) & 
+    (df_mdd_norm['區域'] == ref_region)
+]
+
+if not norm_row.empty:
+    norm_mean = norm_row.iloc[0]['平均MDD']
+    norm_std = norm_row.iloc[0]['標準差']
+    norm_text = f"常模: {norm_mean:.2f} (±{norm_std:.2f})"
+else:
+    norm_mean, norm_std = None, None
+    norm_text = "無此科目/年級之常模資料 (如數學)"
 
 # ==========================================
 # 7. 置頂固定標題列設計
@@ -629,7 +747,7 @@ st.markdown(
     
     <div class="sticky-header">
         <h1>📚 台灣中小學試題語句難度檢測系統 v1.0（雛形）</h1>
-        <p>目前分析學科模式：<strong>{subject}</strong></p>
+        <p>目前分析學科模式：<strong>{subject}</strong> | 當前參考標準：<strong>{ref_school} {ref_grade} ({ref_region})</strong></p>
     </div>
     """,
     unsafe_allow_html=True
@@ -664,7 +782,20 @@ with tab1:
             cols = st.columns(4)
             cols[0].metric("🎯 預估年級", predicted_grade_str)
             cols[1].metric("📏 總字數", f"{features['char_count']} 字")
-            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}")
+            
+            # 單句加入常模比對顯示
+            if norm_mean is not None and norm_std is not None:
+                mdd_diff = features['mdd'] - norm_mean
+                z = mdd_diff / norm_std
+                if z > 0.5: status = "偏難"
+                elif z < -0.5: status = "偏易"
+                else: status = "適中"
+                cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", 
+                               delta=f"較常模 {status} ({mdd_diff:+.2f})", 
+                               delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off")
+            else:
+                cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", help="無常模資料")
+                
             cols[3].metric("🔗 複句結構", features["clause_types"])
             
             st.write("")
@@ -702,8 +833,8 @@ with tab2:
                 res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
                 st.divider()
                 
-                # 1. 整體評估總覽
-                display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df)
+                # 1. 整體評估總覽 (傳入 norm_mean, norm_std)
+                display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df, norm_mean, norm_std)
                 
                 # 2. 難度特徵分析儀表板
                 if show_charts: 
@@ -746,8 +877,8 @@ with tab3:
             res_df = run_batch_analysis(extracted_sentences, nlp, model, current_term_set)
             st.divider()
             
-            # 1. 整體評估總覽
-            display_df, overall_score, total_chars, avg_mdd = render_overall_summary(res_df)
+            # 1. 整體評估總覽 (傳入 norm_mean, norm_std)
+            display_df, overall_score, total_chars, avg_mdd = render_overall_summary(res_df, norm_mean, norm_std)
             
             # 2. 難度特徵分析儀表板
             if show_charts:
