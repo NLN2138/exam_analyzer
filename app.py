@@ -225,7 +225,7 @@ df_mdd_norm = pd.DataFrame(MDD_NORM_DATA)
 # 1. 頁面設定
 # ==========================================
 st.set_page_config(
-    page_title="台灣中小學試題語句難度檢測系統 v1.0（雛形）",
+    page_title="AI 華語文句法難度自動檢測系統 v1.0（雛形）",
     page_icon="📚",
     layout="wide"
 )
@@ -746,7 +746,7 @@ st.markdown(
     </style>
     
     <div class="sticky-header">
-        <h1>📚 台灣中小學試題語句難度檢測系統 v1.0（雛形）</h1>
+        <h1>📚 AI 華語文句法難度自動檢測系統 v1.0（雛形）</h1>
         <p>目前分析學科模式：<strong>{subject}</strong> | 當前參考標準：<strong>{ref_school} {ref_grade} ({ref_region})</strong></p>
     </div>
     """,
