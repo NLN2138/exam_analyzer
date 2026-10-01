@@ -927,8 +927,8 @@ with tab1:
         st.divider()
         st.markdown("### 🌟 整體評估總覽")
         cols = st.columns(4)
-        cols[0].metric("🎯 預估年級", predicted_grade_str)
-        cols[1].metric("📏 總字數", f"{features['char_count']} 字")
+        cols[0].metric("🎯 綜合文本難度 (含字彙與長度)", predicted_grade_str)
+        cols[1].metric("📏 採樣有效字數", f"{features['char_count']} 字")
         
         if norm_mean is not None and norm_std is not None:
             mdd_diff = features['mdd'] - norm_mean
@@ -938,7 +938,7 @@ with tab1:
                            delta=f"較常模 {status} ({mdd_diff:+.2f})", 
                            delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off")
         else:
-            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", help="無常模資料")
+            cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", help="無常模資料")
             
         cols[3].metric("🔗 複句結構", features["clause_types"])
         st.write("")
