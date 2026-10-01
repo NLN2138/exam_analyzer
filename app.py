@@ -941,7 +941,7 @@ with tab1:
         if norm_mean is not None and norm_std is not None:
             mdd_diff = features['mdd'] - norm_mean
             z = mdd_diff / norm_std
-            status = "偏難" if z > 0.5 else "偏易" if z < -0.5 else "適中"
+            difficulty_label = "偏難" if z > 0.5 else "偏易" if z < -0.5 else "適中"
             cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", 
                            # delta=f"較常模 {status} ({mdd_diff:+.2f})",
                            delta=f"與 {ref_region}{ref_grade} 常模比: {difficulty_label} ({mdd_diff:+.2f})",
