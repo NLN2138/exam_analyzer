@@ -726,7 +726,7 @@ def render_overall_summary(df: pd.DataFrame, norm_mean: Optional[float], norm_st
     st.caption("💡 **評估加權機制**：考卷難度採 **前 50% 最具鑑別度的核心語句/長文** 進行加權計算（已過濾無意義結構與指示雜訊）。")
     
     c1, c2, c3 = st.columns(3)
-    c1.metric("🎯 考卷綜合預估年級", overall_grade_str)
+    c1.metric("🎯 綜合文本難度 (含字彙與長度)", overall_grade_str)
     c2.metric("📏 採樣有效字數", f"{total_chars} 字")
     
     if norm_mean is not None and norm_std is not None:
@@ -744,14 +744,14 @@ def render_overall_summary(df: pd.DataFrame, norm_mean: Optional[float], norm_st
             difficulty_label = "適中"
             
         c3.metric(
-            label="🧠 核心語句平均 MDD", 
+            label="🧠 句法結構負擔 (MDD)", 
             value=f"{avg_mdd:.2f}", 
             delta=f"與 {ref_region}{ref_grade} 常模比: {difficulty_label} ({mdd_diff:+.2f})",
             delta_color=delta_color,
             help=f"常模平均: {norm_mean:.2f}, 標準差: {norm_std:.2f}"
         )
     else:
-        c3.metric("🧠 核心語句平均 MDD", f"{avg_mdd:.2f}", help="目前選擇的科目或年級無常模資料")
+        c3.metric("🧠 句法結構負擔 (MDD)", f"{avg_mdd:.2f}", help="目前選擇的科目或年級無常模資料")
         
     st.divider()
     
