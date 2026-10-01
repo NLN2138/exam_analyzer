@@ -943,7 +943,8 @@ with tab1:
             z = mdd_diff / norm_std
             status = "偏難" if z > 0.5 else "偏易" if z < -0.5 else "適中"
             cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", 
-                           delta=f"較常模 {status} ({mdd_diff:+.2f})", 
+                           # delta=f"較常模 {status} ({mdd_diff:+.2f})",
+                           delta=f"與 {ref_region}{ref_grade} 常模比: {difficulty_label} ({mdd_diff:+.2f})",
                            delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off")
         else:
             cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", help="無常模資料")
