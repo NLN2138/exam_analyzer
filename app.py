@@ -13,7 +13,6 @@ from openai import OpenAI
 # ==========================================
 # 0.1 OpenAI API 初始化設定
 # ==========================================
-# 自動抓取 .streamlit/secrets.toml 或環境變數中的 OPENAI_API_KEY
 openai_api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
 client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
@@ -41,7 +40,7 @@ def get_smart_split_suggestion(sentence: str, bottleneck: str, mdd: float) -> st
     """
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini", # 使用 4o-mini 兼顧速度與便宜
+            model="gpt-4o-mini", 
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
@@ -575,6 +574,12 @@ def map_score_to_grade_str(avg_score: float) -> str:
     elif avg_score >= 3.0: return "3-4 年級 (國小)"
     else: return "1-2 年級 (國小)"
 
+@st.cache_data(show_spinner=False)
+def run_batch_analysis_cached(question_list: List[str], current_term_set: set) -> pd.DataFrame:
+    """為了避免重複運算，將分析引擎加入快取或使用獨立的運算函數"""
+    # 這裡實作用於批次與試卷分析
+    pass # 稍後我們直接在流程內使用 session_state 來取代 cache
+
 def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, term_set: set) -> pd.DataFrame:
     results = []
     progress_bar = st.progress(0)
@@ -602,26 +607,33 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
     return pd.DataFrame(results)
 
 # ==========================================
-# 4.5 AI 改寫建議與降幅渲染共用模組 (含按鈕觸發機制)
+# 4.5 AI 改寫建議與降幅渲染共用模組 (含按鈕狀態保存)
 # ==========================================
 def render_ai_suggestion_ui(original_text: str, bottleneck: str, old_mdd: float, old_max_dd: int, nlp_model, term_set, unique_key: str):
-    """處理 AI 呼叫並將改寫結果重新算 MDD 以顯示降幅的共用 UI 模組（節省算力設計）"""
+    """處理 AI 呼叫並將改寫結果重新算 MDD 以顯示降幅的共用 UI 模組"""
     if not client:
         st.info("💡 請在 Streamlit Secrets 設定 `OPENAI_API_KEY` 即可解鎖 AI 智慧拆句改寫建議！")
         return
         
-    if st.button("✨ 點擊獲取 AI 智慧改寫建議 (將消耗 API)", key=unique_key):
-        with st.spinner("🤖 AI 正在進行智慧拆句分析..."):
-            suggestion = get_smart_split_suggestion(original_text, bottleneck, round(old_mdd, 2))
+    ai_state_key = f"ai_result_{unique_key}"
+    
+    # 如果還沒產生建議，顯示按鈕
+    if ai_state_key not in st.session_state:
+        if st.button("✨ 點擊獲取 AI 智慧改寫建議 (將消耗 API)", key=unique_key):
+            with st.spinner("🤖 AI 正在進行智慧拆句分析..."):
+                suggestion = get_smart_split_suggestion(original_text, bottleneck, round(old_mdd, 2))
+                st.session_state[ai_state_key] = suggestion
+            # 按鈕被按下的當下，session state 更新完成，Streamlit 會自動重新渲染畫面
+            
+    # 如果 session state 裡面已經有結果，直接顯示 (不用重新算)
+    if ai_state_key in st.session_state:
+        suggestion = st.session_state[ai_state_key]
         st.info(suggestion)
         
-        # 利用 Regex 抓出改寫後的句子
         match = re.search(r'【改寫建議】[：:]\s*(.*)', suggestion, re.DOTALL)
         if match:
-            # 移除 markdown 的粗體或斜體符號，避免影響 spaCy 斷詞
             rewritten_text = match.group(1).replace('**', '').replace('*', '').replace('`', '').strip()
             if rewritten_text:
-                # 重新計算改寫後的新句子的 MDD 特徵
                 new_doc = nlp_model(rewritten_text)
                 new_feat = extract_features_from_doc(new_doc, term_set)
                 
@@ -631,7 +643,6 @@ def render_ai_suggestion_ui(original_text: str, bottleneck: str, old_mdd: float,
                 mdd_diff = new_feat['mdd'] - old_mdd
                 max_dd_diff = new_feat['max_dd'] - old_max_dd
                 
-                # 使用 delta_color="inverse" 讓負數 (數值下降/難度降低) 顯示為綠色
                 c1.metric("✨ 改寫後 MDD", f"{new_feat['mdd']:.2f}", f"{mdd_diff:.2f}", delta_color="inverse")
                 c2.metric("✨ 改寫後最大距離", f"{new_feat['max_dd']}", f"{max_dd_diff}", delta_color="inverse")
 
@@ -853,12 +864,7 @@ else:
 st.markdown(
     f"""
     <style>
-    /* 減少 Streamlit 預設過多的頂部留白 */
-    .block-container {{
-        padding-top: 2rem !important;
-    }}
-    
-    /* 找到包覆標題的容器，並將它設定為 Sticky */
+    .block-container {{ padding-top: 2rem !important; }}
     div[data-testid="stVerticalBlock"] > div:has(.sticky-header),
     div.element-container:has(.sticky-header) {{
         position: sticky;
@@ -870,20 +876,8 @@ st.markdown(
         margin-bottom: 1rem;
         border-bottom: 2px solid var(--secondary-background-color); 
     }}
-    
-    /* 微調標題文字樣式 */
-    .sticky-header h1 {{
-        margin: 0; 
-        padding-bottom: 0.2rem; 
-        font-size: 2.25rem; 
-        font-weight: 700;
-    }}
-    .sticky-header p {{
-        margin: 0; 
-        font-size: 1rem; 
-        color: var(--text-color);
-        opacity: 0.8;
-    }}
+    .sticky-header h1 {{ margin: 0; padding-bottom: 0.2rem; font-size: 2.25rem; font-weight: 700; }}
+    .sticky-header p {{ margin: 0; font-size: 1rem; color: var(--text-color); opacity: 0.8; }}
     </style>
     
     <div class="sticky-header">
@@ -894,96 +888,97 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 渲染頁籤
 tab1, tab2, tab3 = st.tabs(["✍️ 單句分析", "📋 多句分析", "📄 試卷分析"])
 
-# --- TAB 1: 單句檢測 ---
+# ==========================================
+# TAB 1: 單句檢測 (結合 Session State 暫存架構)
+# ==========================================
 with tab1:
-    question_text = st.text_area(
-        "題目文字", 
-        height=130, 
-        placeholder=f"請輸入單一試題...\n\n若未輸入內容點選分析，將自動載入預設範例題：\n{DEFAULT_SINGLE_Q}"
-    )
+    question_text = st.text_area("題目文字", height=130, placeholder=f"請輸入單一試題...\n\n若未輸入內容點選分析，將自動載入預設範例題：\n{DEFAULT_SINGLE_Q}")
 
     if st.button("🚀 開始檢測單句", type="primary"):
-        target_text = question_text.strip()
-        if not target_text:
-            target_text = DEFAULT_SINGLE_Q
-            st.info("💡 您未輸入內容，已自動載入**預設單句**進行分析。")
-
+        target_text = question_text.strip() or DEFAULT_SINGLE_Q
+        st.session_state['t1_run'] = True
+        st.session_state['t1_warning'] = not question_text.strip()
+        
         with st.spinner("分析中..."):
             doc = nlp(target_text)
             features = extract_features_from_doc(doc, current_term_set)
             predicted_grade_str, predicted_raw_score = predict_grade(features, model)
             
-            st.divider()
+            # 將運算結果存入 session_state
+            st.session_state['t1_feat'] = features
+            st.session_state['t1_grade'] = predicted_grade_str
+            st.session_state['t1_score'] = predicted_raw_score
             
-            # 1. 整體評估總覽
-            st.markdown("### 🌟 整體評估總覽")
-            cols = st.columns(4)
-            cols[0].metric("🎯 預估年級", predicted_grade_str)
-            cols[1].metric("📏 總字數", f"{features['char_count']} 字")
-            
-            # 單句加入常模比對顯示
-            if norm_mean is not None and norm_std is not None:
-                mdd_diff = features['mdd'] - norm_mean
-                z = mdd_diff / norm_std
-                if z > 0.5: status = "偏難"
-                elif z < -0.5: status = "偏易"
-                else: status = "適中"
-                cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", 
-                               delta=f"較常模 {status} ({mdd_diff:+.2f})", 
-                               delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off")
-            else:
-                cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", help="無常模資料")
-                
-            cols[3].metric("🔗 複句結構", features["clause_types"])
-            
-            st.write("")
-            
-            # --- 單句：高難度警示與 AI 建議 ---
-            mdd_threshold = norm_mean if norm_mean is not None else 3.6
-            
-            if features['mdd'] > mdd_threshold:
-                st.markdown("### 🚨 高難度警示與智慧拆句建議")
-                st.warning(f"**系統偵測此句 MDD ({features['mdd']:.2f}) 高於當前標準 ({mdd_threshold:.2f})，認知負荷偏高！** \n* 最大依存距離: {features['max_dd']} \n* 最長瓶頸弧: {features['bottleneck']}")
-                
-                # 呼叫共用 AI 渲染模組，並賦予專屬 key
-                render_ai_suggestion_ui(
-                    original_text=features['text'], 
-                    bottleneck=features['bottleneck'], 
-                    old_mdd=features['mdd'], 
-                    old_max_dd=features['max_dd'], 
-                    nlp_model=nlp, 
-                    term_set=current_term_set,
-                    unique_key="btn_ai_single"
-                )
-            else:
-                st.markdown("### ✨ 句法結構檢測通過")
-                st.success(f"🎉 此句的 MDD ({features['mdd']:.2f}) 低於/等於當前難度標準 ({mdd_threshold:.2f})，句法負擔適中，無須進行拆句修改！")
+            # 清除舊的 AI 結果
+            if "ai_result_btn_ai_single" in st.session_state:
+                del st.session_state["ai_result_btn_ai_single"]
 
-            # 2. 難度特徵分析儀表板
-            if show_charts:
-                render_single_sentence_charts(features, predicted_raw_score)
-                
-            # 3. 特徵明細
-            if show_table:
-                st.markdown("### 📋 特徵明細")
-                st.dataframe({
-                    "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "最大依存距離", "原始 MDD", "修正 MDD"],
-                    "數值": [
-                        features['word_count'], 
-                        f"{features['noun_ratio']:.1%}", 
-                        f"{features['verb_ratio']:.1%}", 
-                        f"{features['vocab_depth']} 個",
-                        features['max_dd'],
-                        f"{features['base_mdd']:.2f}",
-                        f"{features['mdd']:.2f}"
-                    ]
-                }, use_container_width=True)
+    # --- 以下為渲染區塊 ---
+    if st.session_state.get('t1_run', False):
+        if st.session_state.get('t1_warning'):
+            st.info("💡 您未輸入內容，已自動載入**預設單句**進行分析。")
+            
+        features = st.session_state['t1_feat']
+        predicted_grade_str = st.session_state['t1_grade']
+        predicted_raw_score = st.session_state['t1_score']
+        
+        st.divider()
+        st.markdown("### 🌟 整體評估總覽")
+        cols = st.columns(4)
+        cols[0].metric("🎯 預估年級", predicted_grade_str)
+        cols[1].metric("📏 總字數", f"{features['char_count']} 字")
+        
+        if norm_mean is not None and norm_std is not None:
+            mdd_diff = features['mdd'] - norm_mean
+            z = mdd_diff / norm_std
+            status = "偏難" if z > 0.5 else "偏易" if z < -0.5 else "適中"
+            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", 
+                           delta=f"較常模 {status} ({mdd_diff:+.2f})", 
+                           delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off")
+        else:
+            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", help="無常模資料")
+            
+        cols[3].metric("🔗 複句結構", features["clause_types"])
+        st.write("")
+        
+        # --- 單句：高難度警示與 AI 建議 ---
+        mdd_threshold = norm_mean if norm_mean is not None else 3.6
+        if features['mdd'] > mdd_threshold:
+            st.markdown("### 🚨 高難度警示與智慧拆句建議")
+            st.warning(f"**系統偵測此句 MDD ({features['mdd']:.2f}) 高於當前標準 ({mdd_threshold:.2f})，認知負荷偏高！** \n* 最大依存距離: {features['max_dd']} \n* 最長瓶頸弧: {features['bottleneck']}")
+            
+            render_ai_suggestion_ui(
+                original_text=features['text'], 
+                bottleneck=features['bottleneck'], 
+                old_mdd=features['mdd'], 
+                old_max_dd=features['max_dd'], 
+                nlp_model=nlp, 
+                term_set=current_term_set,
+                unique_key="btn_ai_single"
+            )
+        else:
+            st.markdown("### ✨ 句法結構檢測通過")
+            st.success(f"🎉 此句的 MDD ({features['mdd']:.2f}) 低於/等於當前難度標準 ({mdd_threshold:.2f})，句法負擔適中，無須進行拆句修改！")
 
+        if show_charts:
+            render_single_sentence_charts(features, predicted_raw_score)
+            
+        if show_table:
+            st.markdown("### 📋 特徵明細")
+            st.dataframe({
+                "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "最大依存距離", "原始 MDD", "修正 MDD"],
+                "數值": [
+                    features['word_count'], f"{features['noun_ratio']:.1%}", 
+                    f"{features['verb_ratio']:.1%}", f"{features['vocab_depth']} 個",
+                    features['max_dd'], f"{features['base_mdd']:.2f}", f"{features['mdd']:.2f}"
+                ]
+            }, use_container_width=True)
 
-# --- TAB 2: 多句批次查詢 ---
+# ==========================================
+# TAB 2: 多句批次查詢 (結合 Session State 暫存架構)
+# ==========================================
 with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
@@ -995,94 +990,29 @@ with tab2:
             
             if q_list:
                 res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
-                st.divider()
+                st.session_state['t2_run'] = True
+                st.session_state['t2_res_df'] = res_df
                 
-                # 1. 整體評估總覽
-                display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df, norm_mean, norm_std)
-                
-                # 2. 難度特徵分析儀表板
-                if show_charts: 
-                    render_statistics_charts(display_df)
-                
-                # 3. 特徵明細
-                if show_table: 
-                    st.markdown("### 📋 特徵明細")
-                    st.dataframe(display_df, use_container_width=True)
+                # 清除舊的 AI 結果
+                for k in list(st.session_state.keys()):
+                    if k.startswith("ai_result_btn_ai_batch_"):
+                        del st.session_state[k]
 
-                # --- 批次：抓出大於常模標準的最難 Top 2 進行 AI 改寫建議 ---
-                mdd_threshold = norm_mean if norm_mean is not None else 3.6
-                high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
-                
-                if not high_diff_df.empty:
-                    st.markdown("### 🚨 考題高難度警示與 AI 智慧拆句 (Top 2)")
-                    st.caption(f"為避免 API 濫用並聚焦重點，系統僅針對 **高於標準 ({mdd_threshold:.2f})** 且最具鑑別度的 **前 2 句** 提供 AI 改寫建議。")
-                    
-                    top_2_hardest = high_diff_df.sort_values(by="MDD數值", ascending=False).head(2)
-                    
-                    for idx, row in top_2_hardest.iterrows():
-                        with st.expander(f"⚠️️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
-                            st.write(f"**原句**：{row['題目內容']}")
-                            st.write(f"**瓶頸弧**：{row['瓶頸定位']}")
-                            
-                            # 呼叫共用 AI 渲染模組，並賦予專屬 key
-                            render_ai_suggestion_ui(
-                                original_text=row['題目內容'], 
-                                bottleneck=row['瓶頸定位'], 
-                                old_mdd=row['MDD數值'], 
-                                old_max_dd=row['最大依存距離'], 
-                                nlp_model=nlp, 
-                                term_set=current_term_set,
-                                unique_key=f"btn_ai_batch_{idx}"
-                            )
-                else:
-                    st.markdown("### ✨ 句法結構檢測通過")
-                    st.success(f"🎉 本次測試的試題 MDD 皆低於/等於當前標準門檻 ({mdd_threshold:.2f})，無須進行高負載句法拆句與修改！")
-
-# --- TAB 3: 整份考題分析 ---
-with tab3:
-    st.markdown("### 🧹 考題自動雜訊過濾與深度檢測")
-    st.info("💡 **全卷檢測防稀釋原理**：\n1. **智慧降噪**：自動過濾「請回答下列問題」、「選出正確的...」等指示句、大題標頭與括號，避免無意義短句拉低難度。\n2. **Top 50% 鑑別度加權**：採考卷中最具鑑別度的前 50% 核心語句決定整份考卷適用年級。")
-    
-    col_param1, col_param2 = st.columns(2)
-    with col_param1:
-        min_char_limit = st.slider("📏 採樣句數最低字數門檻", min_value=8, max_value=30, value=14, step=2, help="小於此字數的無意義短句或配分說明將被自動忽略。")
-    
-    raw_exam_paper = st.text_area(
-        "請貼上整份考題文字：",
-        height=320,
-        placeholder=f"請在此直接貼上完整的考題內文...\n\n若未輸入內容點選分析，將自動載入預設試卷範例：\n{DEFAULT_EXAM_PAPER}"
-    )
-    
-    if st.button("🔍 雜訊過濾並開始分析考題", type="primary"):
-        exam_input = raw_exam_paper.strip()
-        if not exam_input:
-            exam_input = DEFAULT_EXAM_PAPER
-            st.info("💡 您未輸入考題內容，已自動載入**預設考題範例**進行降噪與深度分析。")
-
-        with st.spinner("正在進行文本降噪、結構切割與深度特徵提取..."):
-            extracted_sentences, filtered_noise = sanitize_exam_paper(exam_input, min_length=min_char_limit)
-            
-        if not extracted_sentences:
-            st.error("❌ 找不到符合字數門檻的有效句子，請嘗試降低採樣字數門檻！")
-        else:
-            st.success(f"✅ 成功從考題中過濾雜訊，擷取出 **{len(extracted_sentences)}** 個具代表性的有效試題語句！")
-            
-            res_df = run_batch_analysis(extracted_sentences, nlp, model, current_term_set)
+        # --- 以下為渲染區塊 ---
+        if st.session_state.get('t2_run', False) and 't2_res_df' in st.session_state:
+            res_df = st.session_state['t2_res_df']
             st.divider()
             
-            # 1. 整體評估總覽
-            display_df, overall_score, total_chars, avg_mdd = render_overall_summary(res_df, norm_mean, norm_std)
+            display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df, norm_mean, norm_std)
             
-            # 2. 難度特徵分析儀表板
-            if show_charts:
+            if show_charts: 
                 render_statistics_charts(display_df)
-                
-            # 3. 特徵明細
-            if show_table:
+            
+            if show_table: 
                 st.markdown("### 📋 特徵明細")
                 st.dataframe(display_df, use_container_width=True)
 
-            # --- 試卷：抓出大於常模標準的最難 Top 2 進行 AI 改寫建議 ---
+            # --- 批次：抓出大於常模標準的最難 Top 2 ---
             mdd_threshold = norm_mean if norm_mean is not None else 3.6
             high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
             
@@ -1097,7 +1027,88 @@ with tab3:
                         st.write(f"**原句**：{row['題目內容']}")
                         st.write(f"**瓶頸弧**：{row['瓶頸定位']}")
                         
-                        # 呼叫共用 AI 渲染模組，並賦予專屬 key
+                        render_ai_suggestion_ui(
+                            original_text=row['題目內容'], 
+                            bottleneck=row['瓶頸定位'], 
+                            old_mdd=row['MDD數值'], 
+                            old_max_dd=row['最大依存距離'], 
+                            nlp_model=nlp, 
+                            term_set=current_term_set,
+                            unique_key=f"btn_ai_batch_{idx}"
+                        )
+            else:
+                st.markdown("### ✨ 句法結構檢測通過")
+                st.success(f"🎉 本次測試的試題 MDD 皆低於/等於當前標準門檻 ({mdd_threshold:.2f})，無須進行高負載句法拆句與修改！")
+
+# ==========================================
+# TAB 3: 整份考題分析 (結合 Session State 暫存架構)
+# ==========================================
+with tab3:
+    st.markdown("### 🧹 考題自動雜訊過濾與深度檢測")
+    st.info("💡 **全卷檢測防稀釋原理**：\n1. **智慧降噪**：自動過濾無意義短句拉低難度。\n2. **Top 50% 鑑別度加權**：採考卷中最具鑑別度的前 50% 核心語句決定整體適用年級。")
+    
+    col_param1, col_param2 = st.columns(2)
+    with col_param1:
+        min_char_limit = st.slider("📏 採樣句數最低字數門檻", min_value=8, max_value=30, value=14, step=2)
+    
+    raw_exam_paper = st.text_area("請貼上整份考題文字：", height=320, placeholder=f"請在此直接貼上完整的考題內文...\n\n若未輸入內容點選分析，將自動載入預設試卷範例：\n{DEFAULT_EXAM_PAPER}")
+    
+    if st.button("🔍 雜訊過濾並開始分析考題", type="primary"):
+        exam_input = raw_exam_paper.strip() or DEFAULT_EXAM_PAPER
+        st.session_state['t3_warning'] = not raw_exam_paper.strip()
+        
+        with st.spinner("正在進行文本降噪、結構切割與深度特徵提取..."):
+            extracted_sentences, filtered_noise = sanitize_exam_paper(exam_input, min_length=min_char_limit)
+            
+            if extracted_sentences:
+                res_df = run_batch_analysis(extracted_sentences, nlp, model, current_term_set)
+                st.session_state['t3_run'] = True
+                st.session_state['t3_res_df'] = res_df
+                st.session_state['t3_noise'] = filtered_noise
+                st.session_state['t3_extracted'] = len(extracted_sentences)
+            else:
+                st.session_state['t3_run'] = True
+                st.session_state['t3_res_df'] = None
+                
+            # 清除舊的 AI 結果
+            for k in list(st.session_state.keys()):
+                if k.startswith("ai_result_btn_ai_exam_"):
+                    del st.session_state[k]
+
+    # --- 以下為渲染區塊 ---
+    if st.session_state.get('t3_run', False):
+        if st.session_state.get('t3_warning'):
+            st.info("💡 您未輸入考題內容，已自動載入**預設考題範例**進行降噪與深度分析。")
+            
+        if st.session_state.get('t3_res_df') is not None:
+            st.success(f"✅ 成功從考題中過濾雜訊，擷取出 **{st.session_state['t3_extracted']}** 個具代表性的有效試題語句！")
+            res_df = st.session_state['t3_res_df']
+            
+            st.divider()
+            display_df, overall_score, total_chars, avg_mdd = render_overall_summary(res_df, norm_mean, norm_std)
+            
+            if show_charts:
+                render_statistics_charts(display_df)
+                
+            if show_table:
+                st.markdown("### 📋 特徵明細")
+                st.dataframe(display_df, use_container_width=True)
+
+            # --- 試卷：抓出大於常模標準的最難 Top 2 ---
+            mdd_threshold = norm_mean if norm_mean is not None else 3.6
+            high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
+            
+            if not high_diff_df.empty:
+                st.markdown("### 🚨 考題高難度警示與 AI 智慧拆句 (Top 2)")
+                st.caption(f"為避免 API 濫用並聚焦重點，系統僅針對 **高於標準 ({mdd_threshold:.2f})** 且最具鑑別度的 **前 2 句** 提供 AI 改寫建議。")
+                
+                top_2_hardest = high_diff_df.sort_values(by="MDD數值", ascending=False).head(2)
+                
+                for idx, row in top_2_hardest.iterrows():
+                    with st.expander(f"⚠️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
+                        st.write(f"**原句**：{row['題目內容']}")
+                        st.write(f"**瓶頸弧**：{row['瓶頸定位']}")
+                        
                         render_ai_suggestion_ui(
                             original_text=row['題目內容'], 
                             bottleneck=row['瓶頸定位'], 
@@ -1112,12 +1123,9 @@ with tab3:
                 st.success(f"🎉 全卷核心試題的 MDD 皆低於/等於當前標準門檻 ({mdd_threshold:.2f})，符合該年級認知發展，無須修改！")
             
             with st.expander("👁️ 檢視被自動過濾的考題雜訊與指示句（點擊展開）"):
-                st.write(f"共過濾掉 **{len(filtered_noise)}** 個雜訊片段：")
-                st.json(filtered_noise[:30])
+                st.write(f"共過濾掉 **{len(st.session_state['t3_noise'])}** 個雜訊片段：")
+                st.json(st.session_state['t3_noise'][:30])
             
-            st.download_button(
-                "📥 下載整份考題分析報告 CSV", 
-                display_df.to_csv(index=False).encode("utf-8-sig"), 
-                "考題分析報告.csv", 
-                "text/csv"
-            )
+            st.download_button("📥 下載整份考題分析報告 CSV", display_df.to_csv(index=False).encode("utf-8-sig"), "考題分析報告.csv", "text/csv")
+        else:
+            st.error("❌ 找不到符合字數門檻的有效句子，請嘗試降低採樣字數門檻！")
