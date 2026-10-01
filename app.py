@@ -619,7 +619,7 @@ def render_ai_suggestion_ui(original_text: str, bottleneck: str, old_mdd: float,
     
     # 如果還沒產生建議，顯示按鈕
     if ai_state_key not in st.session_state:
-        if st.button("✨ 點擊獲取 AI 智慧改寫建議 (將消耗 API)", key=unique_key):
+        if st.button("✨ 點擊獲取 AI 智慧改寫建議", key=unique_key):
             with st.spinner("🤖 AI 正在進行智慧拆句分析..."):
                 suggestion = get_smart_split_suggestion(original_text, bottleneck, round(old_mdd, 2))
                 st.session_state[ai_state_key] = suggestion
