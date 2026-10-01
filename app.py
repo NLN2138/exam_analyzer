@@ -878,6 +878,14 @@ st.markdown(
     }}
     .sticky-header h1 {{ margin: 0; padding-bottom: 0.2rem; font-size: 2.25rem; font-weight: 700; }}
     .sticky-header p {{ margin: 0; font-size: 1rem; color: var(--text-color); opacity: 0.8; }}
+    
+    /* 👇 就是加在這裡：強制縮小 metric 數值的字體 👇 */
+    [data-testid="stMetricValue"] > div {{
+        font-size: 1.35rem !important; /* 預設為 1.8rem，改為 1.35rem 左右較為精緻 */
+        line-height: 1.2 !important;
+    }}
+    /* 👆 加到這裡結束 👆 */
+    
     </style>
     
     <div class="sticky-header">
@@ -934,7 +942,7 @@ with tab1:
             mdd_diff = features['mdd'] - norm_mean
             z = mdd_diff / norm_std
             status = "偏難" if z > 0.5 else "偏易" if z < -0.5 else "適中"
-            cols[2].metric("🧠 依存距離 (MDD)", f"{features['mdd']:.2f}", 
+            cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", 
                            delta=f"較常模 {status} ({mdd_diff:+.2f})", 
                            delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off")
         else:
