@@ -8,11 +8,51 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 from typing import List, Dict, Any, Optional, Tuple
+from openai import OpenAI
+
+# ==========================================
+# 0.1 OpenAI API 初始化設定
+# ==========================================
+# 自動抓取 .streamlit/secrets.toml 或環境變數中的 OPENAI_API_KEY
+openai_api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=openai_api_key) if openai_api_key else None
+
+def get_smart_split_suggestion(sentence: str, bottleneck: str, mdd: float) -> str:
+    """呼叫 ChatGPT API 進行智慧拆句建議"""
+    if not client:
+        return "⚠️️ 未偵測到 OPENAI_API_KEY，請先至 Streamlit Secrets 設定金鑰。"
+        
+    prompt = f"""
+    你是一位專業的華語文教材編輯與句法學專家。
+    請根據以下高難度句子（MDD: {mdd}）進行「智慧拆句與改寫建議」。
+    系統偵測到的句法瓶頸（最長依存距離弧）：{bottleneck}
+
+    請依據以下原則給出具體建議：
+    1. 依據標點、轉折/因果關聯詞或連動動詞節點進行斷句。
+    2. 針對瓶頸處，將長情境鋪陳或過長的修飾語獨立成句。
+    3. 改寫後的句子應保持原意，但大幅降低學生的認知負荷（MDD）。
+
+    原句：
+    {sentence}
+
+    請直接輸出以下格式（無須多餘問候）：
+    **【瓶頸分析】**：簡短一句話說明為何這句負擔大。
+    **【改寫建議】**：(提供拆分或重組後的句子，並用亮點標示修改處)
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini", # 使用 4o-mini 兼顧速度與便宜
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"⚠️ API 呼叫失敗：{str(e)}"
+
 
 # ==========================================
 # 0. 靜態常數與黑名單定義
 # ==========================================
-
 ADVANCED_KEYWORDS = {
     "由於", "導致", "以致於", "即使", "仍", "除非", "無論", "若", 
     "除了...也", "透過", "以維持", "評估", "脈絡", "偏誤", "然而", 
@@ -175,7 +215,7 @@ DEFAULT_EXAM_PAPER = """1 OO市OO國小OO學年度上學期六年級自然科學
  ○１電視 ○２平板電腦 ○３手機 ○４課本。
  
  三、 綜合題（題1 每格1 分，其餘每題2 分，共24 分） 1. 請將表格完成(每格1 分)。
-  上游 中游 下游 地勢(坡度)    作用  侵蝕及搬運 作用減弱  景觀    請參考下方資訊填入表格 (陡/緩/平坦/侵蝕/搬運/堆積/大石頭/鵝卵石/泥土細沙) 2. 下圖為懸吊的長條形磁鐵，靜止時會指向地磁方向，請根據指北針的指向，標示出磁鐵的 N 極和 S 極。
+  上游 中游 下游 地勢(坡度)   作用  侵蝕及搬運 作用減弱  景觀   請參考下方資訊填入表格 (陡/緩/平坦/侵蝕/搬運/堆積/大石頭/鵝卵石/泥土細沙) 2. 下圖為懸吊的長條形磁鐵，靜止時會指向地磁方向，請根據指北針的指向，標示出磁鐵的 N 極和 S 極。
   ○１（    ）極 ○２（    ）極  3. 下圖是小怡去國立科學工藝博物館中拍下的某個展區的礦物硬度表，請依照內容回答下列的問題。
  摩氏礦物硬度表 硬度 礦石代表 相對硬度 1 滑石  2 石膏 指甲可刻劃 3 方解石 大頭針可刻劃 4 螢石  5 磷灰石 小刀或玻璃可刻劃 6 正長石 鋼刀不可刻劃 7 石英 鋼刀不可刻劃 8 黃玉  9 剛玉  10 金剛石  當鑑定硬度時，如果沒有以上的摩氏硬度計，可用其他東西代替，如刀片硬度約為 5.5；銅幣約為 3.5 至 4；指甲約為 2 至 3；鋼刀或玻璃硬度為 6。
  註：摩氏硬度表的數字是沒有定量的意義，只代表硬度的等級。
@@ -187,7 +227,7 @@ DEFAULT_EXAM_PAPER = """1 OO市OO國小OO學年度上學期六年級自然科學
 這顆礦石用指甲刻劃沒有痕跡、但用大頭針可以留下痕跡，最有可能的礦物是 ○１石膏 ○２滑石 ○３方解石 ○４石英。
   4.榕榕進行「觀察通電的電線對指北針的影響」實驗，將通電的電線擺在指北針上方，指針順時針偏轉，回答下面問題。
   （ ）(１)如果其他條件不變，將電線移到指北針下方，指針會 ○１順時針偏轉 ○２指向北方 ○３逆時針偏轉 ○４指向南方。
- （ ）(２)如果其他條件不變，將電流改變方向，指針會 ○１順時針偏轉 ○２逆時針偏轉 ○３指向北方          ○４指向南方。
+ （ ）(２)如果其他條件不變，將電流改變方向，指針會 ○１順時針偏轉 ○２逆時針偏轉 ○３指向北方         ○４指向南方。
    （ ）(３)如果其他條件不變，將電線移到指北針下方，並       將電流改變方向，指針會 ○１順時針偏轉            ○２逆時針偏轉 ○３指向北方 ○４指向南方。
       
 2 四、 簡答題 （每個答案2 分，共16 分） 1.請寫出兩種磁鐵和電磁鐵不同的特性。
@@ -216,7 +256,7 @@ DEFAULT_EXAM_PAPER = """1 OO市OO國小OO學年度上學期六年級自然科學
  3.    基隆瑞芳的水湳洞、金瓜石、九份蘊含100 多種礦物，幾乎佔臺灣礦石種類的三分之一，有「礦山版的亞馬遜森林」之美譽。
 作為臺灣金銅礦產開採的原鄉，因其成礦作用產生一系列獨特的地質地形，深深影響礦業設施與聚落的分布及擴展，而其礦床型態及礦物組合也影響礦業開採手法與臺灣礦物科學發展。
  （ ）(１)九份金瓜石是臺灣著名的礦石開採地區，在開採礦物後，下列哪一種不是辨別岩石種類方法？
-           ○１顏色 ○２硬度 ○３結晶外型 ○４岩石顆粒大小。
+            ○１顏色 ○２硬度 ○３結晶外型 ○４岩石顆粒大小。
  （ ）(２)此區域能形成許多礦物的原因，跟當地岩層中礦物質的多樣性與地底下高溫作用影響有關。
 因此造成礦物富集的原因，與哪一個作用最相關？
           ○１風化作用 ○２侵蝕作用 ○３火山作用 ○４搬運作用。
@@ -419,14 +459,25 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
     
     valid_tokens = [t for t in doc if t.pos_ not in ("PUNCT", "SPACE")]
     
+    # --- 新增：MaxDD 與 瓶頸定位 ---
+    max_dd = 0
+    bottleneck_info = "無明顯瓶頸"
     if valid_tokens:
         token_to_valid_idx = {t.i: idx for idx, t in enumerate(valid_tokens)}
         dep_distances = []
+        max_dist_tokens = None
+        
         for t in valid_tokens:
             if t.head != t and t.head.i in token_to_valid_idx:
                 dist = abs(token_to_valid_idx[t.i] - token_to_valid_idx[t.head.i])
                 dep_distances.append(dist)
+                if dist > max_dd:
+                    max_dd = dist
+                    max_dist_tokens = (t, t.head)
+                    
         base_mdd = sum(dep_distances) / len(dep_distances) if dep_distances else 0.0
+        if max_dist_tokens:
+            bottleneck_info = f"「{max_dist_tokens[0].text}」指向「{max_dist_tokens[1].text}」 (距離 {max_dd})"
     else:
         base_mdd = 0.0
     
@@ -450,6 +501,8 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
         "verb_ratio": verb_ratio,
         "base_mdd": base_mdd,
         "mdd": adjusted_mdd,
+        "max_dd": max_dd,                  # 新增
+        "bottleneck": bottleneck_info,     # 新增
         "clause_types": analyze_clause_types(doc),
         "vocab_depth": calculate_vocab_depth(doc, term_set)
     }
@@ -544,7 +597,9 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
             "總字數": feat["char_count"],
             "名詞密度": f"{feat['noun_ratio']:.1%}",
             "學科術語數": feat["vocab_depth"],
-            "MDD數值": round(feat["mdd"], 2)
+            "MDD數值": round(feat["mdd"], 2),
+            "最大依存距離": feat["max_dd"],   # 新增
+            "瓶頸定位": feat["bottleneck"]    # 新增
         })
         progress_bar.progress((i + 1) / total)
         
@@ -634,12 +689,10 @@ def render_overall_summary(df: pd.DataFrame, norm_mean: Optional[float], norm_st
     c1.metric("🎯 考卷綜合預估年級", overall_grade_str)
     c2.metric("📏 採樣有效字數", f"{total_chars} 字")
     
-    # 加入常模比對邏輯
     if norm_mean is not None and norm_std is not None:
         mdd_diff = avg_mdd - norm_mean
         z_score = mdd_diff / norm_std
         
-        # 判斷難易度區間 (+- 0.5個標準差視為適中)
         if z_score > 0.5:
             delta_color = "inverse"
             difficulty_label = "偏難"
@@ -707,7 +760,7 @@ def render_statistics_charts(df: pd.DataFrame):
 # 6. 前端介面與頁籤規劃
 # ==========================================
 with st.sidebar:
-    st.header("⚙️ 系統狀態")
+    st.header("⚙️️ 系統狀態")
     nlp = load_nlp()
     st.success("✅ spaCy 中文模型已載入")
     
@@ -722,11 +775,9 @@ with st.sidebar:
     st.markdown("### 🎯 科目與參照常模設定")
     subject = st.selectbox("分析學科", ["全部學科", "國語文", "數學", "社會", "自然"])
     
-    # --- 新增：常模對標選擇器 ---
     st.markdown("**(以下選項用於比對試卷難度落點)**")
     ref_school = st.selectbox("對標學制", ["國小", "國中", "高中"])
     
-    # 依據學制動態生成年級選項
     if ref_school == "國小":
         grade_options = [f"{i}年級" for i in range(1, 7)]
     elif ref_school == "國中":
@@ -739,7 +790,7 @@ with st.sidebar:
     
     st.divider()
     
-    st.markdown("### 👁️ 介面顯示設定")
+    st.markdown("### 👁️️ 介面顯示設定")
     show_table = st.checkbox("顯示資料明細表", value=True)
     show_charts = st.checkbox("顯示視覺化圖表", value=True)
     
@@ -748,13 +799,10 @@ with st.sidebar:
     else:
         current_term_set = SUBJECT_TERMS.get(subject, set())
 
-# --- 新增：常模過濾邏輯 ---
-# 處理科目名稱對應 (常模資料中，國高中稱為國文，國小稱為國語)
 mapped_subject = subject
 if subject in ["國語文", "全部學科"]:
     mapped_subject = "國語" if ref_school == "國小" else "國文"
 
-# 查找對應的常模資料
 norm_row = df_mdd_norm[
     (df_mdd_norm['學制'] == ref_school) & 
     (df_mdd_norm['科目'] == mapped_subject) & 
@@ -864,6 +912,18 @@ with tab1:
             
             st.write("")
             
+            # --- 單句：高難度警示與 AI 建議 ---
+            if features['mdd'] > 3.6 or features['max_dd'] >= 4:
+                st.markdown("### 🚨 高難度警示與智慧拆句建議")
+                st.warning(f"**系統偵測句法認知負荷偏高！** \n* MDD: {features['mdd']:.2f} \n* 最大依存距離: {features['max_dd']} \n* 最長瓶頸弧: {features['bottleneck']}")
+                
+                if client:
+                    with st.spinner("🤖 AI 正在進行智慧拆句分析..."):
+                        suggestion = get_smart_split_suggestion(features['text'], features['bottleneck'], round(features['mdd'], 2))
+                    st.info(suggestion)
+                else:
+                    st.info("💡 請在 Streamlit Secrets 設定 `OPENAI_API_KEY` 即可解鎖 AI 智慧拆句改寫建議！")
+
             # 2. 難度特徵分析儀表板
             if show_charts:
                 render_single_sentence_charts(features, predicted_raw_score)
@@ -872,16 +932,18 @@ with tab1:
             if show_table:
                 st.markdown("### 📋 特徵明細")
                 st.dataframe({
-                    "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "原始 MDD", "修正 MDD"],
+                    "特徵名稱": ["總詞數 (含標點)", "名詞比例", "動詞比例", "該科進階術語計數", "最大依存距離", "原始 MDD", "修正 MDD"],
                     "數值": [
                         features['word_count'], 
                         f"{features['noun_ratio']:.1%}", 
                         f"{features['verb_ratio']:.1%}", 
                         f"{features['vocab_depth']} 個",
+                        features['max_dd'],
                         f"{features['base_mdd']:.2f}",
                         f"{features['mdd']:.2f}"
                     ]
                 }, use_container_width=True)
+
 
 # --- TAB 2: 多句批次查詢 ---
 with tab2:
@@ -908,6 +970,27 @@ with tab2:
                 if show_table: 
                     st.markdown("### 📋 特徵明細")
                     st.dataframe(display_df, use_container_width=True)
+
+                # --- 批次：抓出最難的 Top 2 進行 AI 改寫建議 ---
+                high_diff_df = display_df[(display_df["MDD數值"] > 3.6) | (display_df["最大依存距離"] >= 4)].copy()
+                if not high_diff_df.empty:
+                    st.markdown("### 🚨 考題高難度警示與 AI 智慧拆句 (Top 2)")
+                    st.caption("為避免 API 濫用並聚焦重點，系統僅為本卷最具鑑別度（最難）的 **前 2 句** 提供 AI 改寫建議。")
+                    
+                    # 依據 MDD 排序，取最難的兩句
+                    top_2_hardest = high_diff_df.sort_values(by="MDD數值", ascending=False).head(2)
+                    
+                    for idx, row in top_2_hardest.iterrows():
+                        with st.expander(f"⚠️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
+                            st.write(f"**原句**：{row['題目內容']}")
+                            st.write(f"**瓶頸弧**：{row['瓶頸定位']}")
+                            
+                            if client:
+                                with st.spinner("🤖 AI 診斷中..."):
+                                    suggestion = get_smart_split_suggestion(row['題目內容'], row['瓶頸定位'], row['MDD數值'])
+                                st.info(suggestion)
+                            else:
+                                st.info("💡 請在 Streamlit Secrets 設定 `OPENAI_API_KEY` 以解鎖 AI 智慧拆句功能！")
 
 # --- TAB 3: 整份考題分析 (智慧降噪與 Top 50% 鑑別度加權) ---
 with tab3:
@@ -952,6 +1035,27 @@ with tab3:
             if show_table:
                 st.markdown("### 📋 特徵明細")
                 st.dataframe(display_df, use_container_width=True)
+
+            # --- 試卷：抓出最難的 Top 2 進行 AI 改寫建議 ---
+            high_diff_df = display_df[(display_df["MDD數值"] > 3.6) | (display_df["最大依存距離"] >= 4)].copy()
+            if not high_diff_df.empty:
+                st.markdown("### 🚨 考題高難度警示與 AI 智慧拆句 (Top 2)")
+                st.caption("為避免 API 濫用並聚焦重點，系統僅為本卷最具鑑別度（最難）的 **前 2 句** 提供 AI 改寫建議。")
+                
+                # 依據 MDD 排序，取最難的兩句
+                top_2_hardest = high_diff_df.sort_values(by="MDD數值", ascending=False).head(2)
+                
+                for idx, row in top_2_hardest.iterrows():
+                    with st.expander(f"⚠️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
+                        st.write(f"**原句**：{row['題目內容']}")
+                        st.write(f"**瓶頸弧**：{row['瓶頸定位']}")
+                        
+                        if client:
+                            with st.spinner("🤖 AI 診斷中..."):
+                                suggestion = get_smart_split_suggestion(row['題目內容'], row['瓶頸定位'], row['MDD數值'])
+                            st.info(suggestion)
+                        else:
+                            st.info("💡 請在 Streamlit Secrets 設定 `OPENAI_API_KEY` 以解鎖 AI 智慧拆句功能！")
             
             with st.expander("👁️ 檢視被自動過濾的考題雜訊與指示句（點擊展開）"):
                 st.write(f"共過濾掉 **{len(filtered_noise)}** 個雜訊片段：")
