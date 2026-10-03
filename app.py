@@ -768,7 +768,7 @@ def render_statistics_charts(df: pd.DataFrame):
     grade_counts = df["預估適用年級"].value_counts().reset_index()
     grade_counts.columns = ["年級", "題數"]
     fig_grade = px.pie(grade_counts, names="年級", values="題數", hole=0.4, 
-                       title="採樣句年級分布占比", 
+                       title="年級分布占比", 
                        color_discrete_sequence=px.colors.qualitative.Pastel)
     fig_grade.update_traces(textposition='inside', textinfo='percent+label')
     fig_grade.update_layout(showlegend=False)
