@@ -330,7 +330,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 2. 載入模型
+# 2. 載入模型 (不在側邊欄顯示狀態)
 # ==========================================
 @st.cache_resource(show_spinner="載入 NLP 模型中...")
 def load_nlp():
@@ -346,6 +346,9 @@ def load_difficulty_model():
     if os.path.exists(model_path):
         return joblib.load(model_path)
     return None
+
+nlp = load_nlp()
+model = load_difficulty_model()
 
 # ==========================================
 # 3. 試題清洗與拆分引擎
@@ -800,18 +803,6 @@ def render_statistics_charts(df: pd.DataFrame):
 # 6. 前端介面與頁籤規劃
 # ==========================================
 with st.sidebar:
-    st.header("⚙ 系統狀態")
-    nlp = load_nlp()
-    st.success("✅ spaCy 中文模型已載入")
-    
-    model = load_difficulty_model()
-    if model:
-        st.success("✅ ML 基準模型已啟用")
-    else:
-        st.warning("⚠️ 啟用動態積分評分引擎 (未載入 pkl 模型)")
-        
-    st.divider()
-    
     st.markdown("### 🎯 科目與參照常模設定")
     subject = st.selectbox("分析學科", ["全部學科", "國語文", "數學", "社會", "自然"])
     
@@ -943,7 +934,7 @@ with tab1:
             z = mdd_diff / norm_std
             difficulty_label = "偏難" if z > 0.5 else "偏易" if z < -0.5 else "適中"
             cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", 
-                           delta=f"與 {ref_region}{ref_grade} 常模比: {difficulty_label} ({mdd_diff:+.2f})",
+                           delta=f"與 {ref_region}{ref_grade} 常模比: {difficulty_label} ({mdd_diff:+.2f})", 
                            delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off")
         else:
             cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", help="無常模資料")
@@ -1113,7 +1104,7 @@ with tab3:
                 top_2_hardest = high_diff_df.sort_values(by="MDD數值", ascending=False).head(2)
                 
                 for idx, row in top_2_hardest.iterrows():
-                    with st.expander(f"⚠️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
+                    with st.expander(f"⚠️️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
                         st.write(f"**原句**：{row['題目內容']}")
                         st.write(f"**瓶頸弧**：{row['瓶頸定位']}")
                         
