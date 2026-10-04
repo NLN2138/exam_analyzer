@@ -804,10 +804,9 @@ def render_statistics_charts(df: pd.DataFrame):
 # ==========================================
 with st.sidebar:
     st.markdown("### 🎯 科目與參照常模設定")
-    subject = st.selectbox("分析學科", ["全部學科", "國語文", "數學", "社會", "自然"])
+    subject = st.selectbox("對照學科", ["全部學科", "國語文", "數學", "社會", "自然"])
     
-    st.markdown("**對照難度落點**")
-    ref_school = st.selectbox("對標學制", ["國小", "國中", "高中"])
+    ref_school = st.selectbox("對照學制", ["國小", "國中", "高中"])
     
     if ref_school == "國小":
         grade_options = [f"{i}年級" for i in range(1, 7)]
@@ -816,8 +815,8 @@ with st.sidebar:
     else:
         grade_options = [f"{i}年級" for i in range(10, 13)]
         
-    ref_grade = st.selectbox("對標年級", grade_options)
-    ref_region = st.selectbox("對標區域", ["六都", "非六都"])
+    ref_grade = st.selectbox("對照年級", grade_options)
+    ref_region = st.selectbox("對照區域", ["六都", "非六都"])
     
     st.divider()
     
