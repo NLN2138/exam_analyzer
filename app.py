@@ -1175,7 +1175,8 @@ with tab4:
     st.markdown("### 📑 引用方式 (Citation)")
     st.write("若本系統對您的教材編纂或學術研究有所助益，歡迎於參考文獻中引用本系統：")
     
-    st.code("""周以銘 (2026)。AI 華語文句法難度自動檢測系統 [電腦軟體]。國家教育研究院。""", language="text")
+    st.code("""周一銘 (2026)。AI 華語文句法難度自動檢測系統 [電腦軟體]。國家教育研究院。""", language="text")
     st.code("""Chou, Y.-M. (2026). AI-powered Chinese syntactic complexity analyzer [Computer software]. National Academy for Educational Research.""", language="text")
-    
-    st.caption("※ 本系統之 MDD 常模數據取自台灣學生各年級與地區的實際測驗語料庫統計。")
+    st.code("""周一銘 (2026)。初探華語文評量材料句法複雜度與自動檢測系統建置。2026東臺灣華語文教學論壇暨國際學術研討會。國立臺東大學""", language="text")
+
+    st.caption("※ 本系統之 MDD 常模數據取自台灣學生各年級與地區的實際測驗文本語料庫統計。")
