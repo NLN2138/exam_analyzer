@@ -806,7 +806,7 @@ with st.sidebar:
     st.markdown("### 🎯 科目與參照常模設定")
     subject = st.selectbox("分析學科", ["全部學科", "國語文", "數學", "社會", "自然"])
     
-    st.markdown("**(對照難度落點)**")
+    st.markdown("**對照難度落點**")
     ref_school = st.selectbox("對標學制", ["國小", "國中", "高中"])
     
     if ref_school == "國小":
