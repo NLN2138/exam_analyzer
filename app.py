@@ -744,12 +744,12 @@ def render_overall_summary(df: pd.DataFrame, norm_mean: Optional[float], norm_st
         c3.metric(
             label="🧠 句法結構負擔 (MDD)", 
             value=f"{avg_mdd:.2f}", 
-            delta=f"與 {ref_region}{ref_grade} 常模比: {difficulty_label} ({mdd_diff:+.2f})",
+            delta=f"與 {ref_region}{ref_grade} 基準比: {difficulty_label} ({mdd_diff:+.2f})",
             delta_color=delta_color,
-            help=f"常模平均: {norm_mean:.2f}, 標準差: {norm_std:.2f}"
+            help=f"基準平均: {norm_mean:.2f}, 標準差: {norm_std:.2f}"
         )
     else:
-        c3.metric("🧠 句法結構負擔 (MDD)", f"{avg_mdd:.2f}", help="目前選擇的科目或年級無常模資料")
+        c3.metric("🧠 句法結構負擔 (MDD)", f"{avg_mdd:.2f}", help="目前選擇的科目或年級無基準資料")
         
     st.divider()
     
@@ -798,7 +798,7 @@ def render_statistics_charts(df: pd.DataFrame):
 # 6. 前端介面與頁籤規劃
 # ==========================================
 with st.sidebar:
-    st.markdown("### 🎯 科目與參照常模設定")
+    st.markdown("### 🎯 科目與參照基準設定")
     subject = st.selectbox("學科", ["全部學科", "國語文", "數學", "社會", "自然"])
     
     ref_school = st.selectbox("學制", ["國小", "國中", "高中"])
@@ -838,10 +838,10 @@ norm_row = df_mdd_norm[
 if not norm_row.empty:
     norm_mean = norm_row.iloc[0]['平均MDD']
     norm_std = norm_row.iloc[0]['標準差']
-    norm_text = f"常模: {norm_mean:.2f} (±{norm_std:.2f})"
+    norm_text = f"基準: {norm_mean:.2f} (±{norm_std:.2f})"
 else:
     norm_mean, norm_std = None, None
-    norm_text = "無此科目/年級之常模資料 (如數學)"
+    norm_text = "無此科目/年級之基準資料 (如數學)"
 
 # ==========================================
 # 7. 置頂固定標題列設計
@@ -928,10 +928,10 @@ with tab1:
             z = mdd_diff / norm_std
             difficulty_label = "偏難" if z > 0.5 else "偏易" if z < -0.5 else "適中"
             cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", 
-                           delta=f"與 {ref_region}{ref_grade} 常模比: {difficulty_label} ({mdd_diff:+.2f})", 
+                           delta=f"與 {ref_region}{ref_grade} 基準比: {difficulty_label} ({mdd_diff:+.2f})", 
                            delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off")
         else:
-            cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", help="無常模資料")
+            cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", help="無基準資料")
             
         cols[3].metric("🔗 複句結構", features["clause_types"])
         st.write("")
@@ -1004,7 +1004,7 @@ with tab2:
                 st.markdown("### 📋 特徵明細")
                 st.dataframe(display_df, use_container_width=True)
 
-            # --- 批次：抓出大於常模標準的最難 Top 2 ---
+            # --- 批次：抓出大於基準標準的最難 Top 2 ---
             mdd_threshold = norm_mean if norm_mean is not None else 3.6
             high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
             
@@ -1084,7 +1084,7 @@ with tab3:
                 st.markdown("### 📋 特徵明細")
                 st.dataframe(display_df, use_container_width=True)
 
-            # --- 試卷：抓出大於常模標準的最難 Top 2 ---
+            # --- 試卷：抓出大於基準標準的最難 Top 2 ---
             mdd_threshold = norm_mean if norm_mean is not None else 3.6
             high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
             
@@ -1156,14 +1156,14 @@ with tab4:
     
     st.markdown("### 🛠️ 系統使用方式")
     st.markdown("""
-    1. **設定對標常模 (側邊欄)**：
+    1. **設定對標基準 (側邊欄)**：
        請先在左側邊欄設定您考卷的「目標對象」（如：國小 6年級 六都）。系統會自動載入該階段學生的平均 MDD 作為難度評估標準。
     2. **選擇分析模式**：
        * **✍️ 單句分析**：適合針對特定難懂的課文長句進行深度診斷。
        * **📋 多句分析**：可貼上多行單獨的句子（**提醒：請保持一句一列，記得換行**），可進行批次分析。
        * **📄 試卷分析**：可直接貼上整份期中/期末考卷，系統會自動啟動「智慧降噪」，濾除題號、配分、指示句（如「請選出正確答案」），專注評估核心試題的閱讀難度。
     3. **AI 智慧改寫建議**：
-       若系統偵測到某題的 MDD 高於您設定的年級常模，系統會提供AI驅動的智慧拆句與改寫建議，協助教師在不改變題意的前提下降低閱讀門檻。
+       若系統偵測到某題的 MDD 高於您設定的年級基準，系統會提供AI驅動的智慧拆句與改寫建議，協助教師在不改變題意的前提下降低閱讀門檻。
     """)
     
     st.divider()
@@ -1172,6 +1172,5 @@ with tab4:
     st.write("若本系統對您的教材編纂或學術研究有所助益，歡迎於參考文獻中引用本系統：")
     
     st.code("""周一銘 (2026)。初探華語文評量材料句法複雜度與自動檢測系統建置。2026東臺灣華語文教學論壇暨國際學術研討會。國立臺東大學。""", language="text")
-    st.code("""周一銘 (2026-2027)。〈國小評量語料中複句語用特徵的歷時與橫斷比較研究〉[研究計畫]。 國家教育研究院。""", language="text")
     
-    st.caption("※ 本系統之 MDD 常模數據取自台灣學生各年級與地區的實際測驗文本語料庫統計。")
+    st.caption("※ 本系統之 MDD 基準數據取自台灣學生各年級與地區的實際測驗文本語料庫統計。")
