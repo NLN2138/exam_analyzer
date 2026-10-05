@@ -370,11 +370,13 @@ def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str],
     else:
         cleaned_body = raw_text
 
-    cleaned = re.sub(r'[(（][^()（）]*每[題字格分].*?[)）]', '', cleaned_body)
+    # 【新增】將並排的選項 (如 ○１... ○２... 或 A... B...) 強制拆分到新行
+    cleaned = re.sub(r'(?<=.)\s*(○[0-9１-９]|[①-⑨]|\([A-Da-dＡ-Ｄａ-ｄ]\)|[A-Da-dＡ-Ｄａ-ｄ][\.、])', r'\n\1', cleaned_body)
+
+    cleaned = re.sub(r'[(（][^()（）]*每[題字格分].*?[)）]', '', cleaned)
     cleaned = re.sub(r'(?:班級|學號|座號|姓名|分數|得分|閱卷老師|家長簽章)\s*[:：_＿\s].*', '', cleaned)
     cleaned = re.sub(r'(?:市立|縣立|國中|高中|國民小學|學年度|評量試卷|期中|期末).*', '', cleaned)
     cleaned = re.sub(r'[一二三四五六七八九十]+\s*[\u4e00-\u9fa5]+[：:]', '', cleaned)
-    cleaned = re.sub(r'^\s*[\d\w]+\s*[\.、．]', '', cleaned, flags=re.MULTILINE)
     cleaned = re.sub(r'[↓｜|]', '', cleaned)
     cleaned = re.sub(r'\([ 0-9A-Za-z\s]*\)|（[ 0-9A-Za-z\s]*）', '', cleaned)
     
@@ -388,7 +390,10 @@ def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str],
     
     for s in raw_sentences:
         s_strip = s.strip()
-        s_strip = re.sub(r'^\s*\d+\s*', '', s_strip)
+        
+        # 【新增】清除句首的題號或選項標籤，避免干擾字數與句法判斷
+        s_strip = re.sub(r'^(○[0-9１-９]|[①-⑨]|\([A-Da-dＡ-Ｄａ-ｄ]\)|[A-Da-dＡ-Ｄａ-ｄ][\.、]|\d+\s*[\.、．])\s*', '', s_strip)
+        
         if not s_strip:
             continue
             
@@ -397,7 +402,7 @@ def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str],
             continue
             
         if len(s_strip) < min_length:
-            filtered_out.append(f"[過短] {s_strip}")
+            filtered_out.append(f"[過短或獨立選項] {s_strip}")
             continue
             
         is_instruction = any(re.search(pat, s_strip) for pat in INSTRUCTION_PATTERNS)
@@ -457,11 +462,9 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
     valid_tokens = [t for t in doc if t.pos_ not in ("PUNCT", "SPACE")]
     
     max_dd = 0
-    bottleneck_info = "無明顯瓶頸"
     if valid_tokens:
         token_to_valid_idx = {t.i: idx for idx, t in enumerate(valid_tokens)}
         dep_distances = []
-        max_dist_tokens = None
         
         for t in valid_tokens:
             if t.head != t and t.head.i in token_to_valid_idx:
@@ -469,11 +472,8 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
                 dep_distances.append(dist)
                 if dist > max_dd:
                     max_dd = dist
-                    max_dist_tokens = (t, t.head)
                     
         base_mdd = sum(dep_distances) / len(dep_distances) if dep_distances else 0.0
-        if max_dist_tokens:
-            bottleneck_info = f"「{max_dist_tokens[0].text}」指向「{max_dist_tokens[1].text}」 (距離 {max_dd})"
     else:
         base_mdd = 0.0
     
@@ -498,7 +498,6 @@ def extract_features_from_doc(doc: spacy.tokens.Doc, term_set: set) -> Dict[str,
         "base_mdd": base_mdd,
         "mdd": adjusted_mdd,
         "max_dd": max_dd,
-        "bottleneck": bottleneck_info,
         "clause_types": analyze_clause_types(doc),
         "vocab_depth": calculate_vocab_depth(doc, term_set)
     }
@@ -600,8 +599,7 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
             "名詞密度": f"{feat['noun_ratio']:.1%}",
             "學科術語數": feat["vocab_depth"],
             "MDD數值": round(feat["mdd"], 2),
-            "最大依存距離": feat["max_dd"],   
-            "瓶頸定位_hidden": feat["bottleneck"]    
+            "最大依存距離": feat["max_dd"]
         })
         progress_bar.progress((i + 1) / total)
         
@@ -757,7 +755,7 @@ def render_overall_summary(df: pd.DataFrame, norm_mean: Optional[float], norm_st
         
     st.divider()
     
-    display_df = df.drop(columns=["分數_hidden", "瓶頸定位_hidden"], errors='ignore')
+    display_df = df.drop(columns=["分數_hidden"], errors='ignore')
     return display_df, overall_score, total_chars, avg_mdd
 
 def render_statistics_charts(df: pd.DataFrame):
@@ -1019,7 +1017,7 @@ with tab2:
                 top_2_hardest = high_diff_df.sort_values(by="MDD數值", ascending=False).head(2)
                 
                 for idx, row in top_2_hardest.iterrows():
-                    with st.expander(f"⚠️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
+                    with st.expander(f"⚠️️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
                         st.write(f"**原句**：{row['題目內容']}")
                         
                         render_ai_suggestion_ui(
@@ -1180,6 +1178,5 @@ with tab4:
     st.write("若本系統對您的教材編纂或學術研究有所助益，歡迎於參考文獻中引用本系統：")
     
     st.code("""周一銘 (2026)。初探華語文評量材料句法複雜度與自動檢測系統建置。2026東臺灣華語文教學論壇暨國際學術研討會。國立臺東大學。""", language="text")
-    st.code("""周一銘 (2026-2027)。〈國小評量語料中複句語用特徵的歷時與橫斷比較研究〉[研究計畫]。 國家教育研究院。""", language="text")
-    
+   
     st.caption("※ 本系統之 MDD 常模數據取自台灣學生各年級與地區的實際測驗文本語料庫統計。")
