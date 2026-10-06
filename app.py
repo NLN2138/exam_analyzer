@@ -798,7 +798,7 @@ def render_statistics_charts(df: pd.DataFrame):
 # 6. 前端介面與頁籤規劃
 # ==========================================
 with st.sidebar:
-    st.markdown("### 🎯 科目與參照常模設定")
+    st.markdown("### 🎯 科目與參照基準設定")
     subject = st.selectbox("學科", ["全部學科", "國語文", "數學", "社會", "自然"])
     
     ref_school = st.selectbox("學制", ["國小", "國中", "高中"])
@@ -838,10 +838,10 @@ norm_row = df_mdd_norm[
 if not norm_row.empty:
     norm_mean = norm_row.iloc[0]['平均MDD']
     norm_std = norm_row.iloc[0]['標準差']
-    norm_text = f"常模: {norm_mean:.2f} (±{norm_std:.2f})"
+    norm_text = f"基準: {norm_mean:.2f} (±{norm_std:.2f})"
 else:
     norm_mean, norm_std = None, None
-    norm_text = "無此科目/年級之常模資料 (如數學)"
+    norm_text = "無此科目/年級之基準資料 (如數學)"
 
 # ==========================================
 # 7. 置頂固定標題列設計
@@ -928,10 +928,10 @@ with tab1:
             z = mdd_diff / norm_std
             difficulty_label = "偏難" if z > 0.5 else "偏易" if z < -0.5 else "適中"
             cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", 
-                           delta=f"與 {ref_region}{ref_grade} 常模比: {difficulty_label} ({mdd_diff:+.2f})", 
+                           delta=f"與 {ref_region}{ref_grade} 基準比: {difficulty_label} ({mdd_diff:+.2f})", 
                            delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off")
         else:
-            cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", help="無常模資料")
+            cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", help="無基準資料")
             
         cols[3].metric("🔗 複句結構", features["clause_types"])
         st.write("")
@@ -1004,7 +1004,7 @@ with tab2:
                 st.markdown("### 📋 特徵明細")
                 st.dataframe(display_df, use_container_width=True)
 
-            # --- 批次：抓出大於常模標準的最難 Top 2 ---
+            # --- 批次：抓出大於基準標準的最難 Top 2 ---
             mdd_threshold = norm_mean if norm_mean is not None else 3.6
             high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
             
@@ -1084,7 +1084,7 @@ with tab3:
                 st.markdown("### 📋 特徵明細")
                 st.dataframe(display_df, use_container_width=True)
 
-            # --- 試卷：抓出大於常模標準的最難 Top 2 ---
+            # --- 試卷：抓出大於基準標準的最難 Top 2 ---
             mdd_threshold = norm_mean if norm_mean is not None else 3.6
             high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
             
