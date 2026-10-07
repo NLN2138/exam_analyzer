@@ -1041,7 +1041,7 @@ with tab3:
     with col_param1:
         min_char_limit = st.slider("📏 採樣句數最低字數門檻", min_value=8, max_value=30, value=14, step=2)
     
-    raw_exam_paper = st.text_area("請貼上整份考題文字：", height=320, placeholder=f"請在此直接貼上完整的考題內文...\n\n若未輸入內容點選分析，將自動載入預設試卷範例：\n{DEFAULT_EXAM_PAPER}")
+    raw_exam_paper = st.text_area("請貼上整份考題文字（目前暫不支援直書或雙欄或檔案直接上傳）：", height=320, placeholder=f"請在此直接貼上完整的考題內文...\n\n若未輸入內容點選分析，將自動載入預設試卷範例：\n{DEFAULT_EXAM_PAPER}")
     
     if st.button("🔍 雜訊過濾並開始分析考題", type="primary"):
         exam_input = raw_exam_paper.strip() or DEFAULT_EXAM_PAPER
