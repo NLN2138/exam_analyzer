@@ -1075,6 +1075,7 @@ with tab3:
     
     if st.button("🔍 讀取檔案/文字並開始分析", type="primary"):
         exam_input = ""
+        is_using_default = False # 🌟 新增一個標記，用來記錄是否使用了預設考卷
         
         # 邏輯判斷：優先處理上傳的檔案
         if uploaded_file is not None:
@@ -1086,12 +1087,19 @@ with tab3:
                 elif uploaded_file.name.lower().endswith(".txt"):
                     exam_input = uploaded_file.getvalue().decode("utf-8")
         else:
-            # 若沒有上傳檔案，則抓取文字框內容或載入範例
-            exam_input = raw_exam_paper.strip() or DEFAULT_EXAM_PAPER
+            # 若沒有上傳檔案，則檢查文字框是否有貼上內容
+            if raw_exam_paper.strip():
+                exam_input = raw_exam_paper.strip()
+            else:
+                # 🌟 如果沒檔案也沒文字，就啟用您提供的預設試卷 (DEFAULT_EXAM_PAPER)
+                exam_input = DEFAULT_EXAM_PAPER
+                is_using_default = True
 
-        st.session_state['t3_warning'] = not exam_input.strip() and uploaded_file is None
+        # 將是否使用預設的狀態存入 session_state，用來觸發前端的藍色提示框
+        st.session_state['t3_warning'] = is_using_default
         
         with st.spinner("正在進行文本降噪、結構切割與深度特徵提取..."):
+            # 這裡的 exam_input 就會是完美的預設考卷了
             extracted_sentences, filtered_noise = sanitize_exam_paper(exam_input, min_length=min_char_limit)
             
             if extracted_sentences:
