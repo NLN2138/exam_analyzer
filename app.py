@@ -9,6 +9,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from typing import List, Dict, Any, Optional, Tuple
 from openai import OpenAI
+import io
+import PyPDF2
+import docx
 
 # ==========================================
 # 0.1 OpenAI API 初始化設定
@@ -46,6 +49,30 @@ def get_smart_split_suggestion(sentence: str, mdd: float) -> str:
         return response.choices[0].message.content
     except Exception as e:
         return f"⚠️ API 呼叫失敗：{str(e)}"
+
+# ==========================================
+# 0.5 檔案解析 Helper 函數
+# ==========================================
+def extract_text_from_pdf(file_bytes) -> str:
+    """從上傳的 PDF 檔案流中萃取文字"""
+    try:
+        reader = PyPDF2.PdfReader(file_bytes)
+        text = []
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text.append(page_text)
+        return "\n".join(text)
+    except Exception as e:
+        return f"⚠️ PDF 讀取失敗: {str(e)}"
+
+def extract_text_from_docx(file_bytes) -> str:
+    """從上傳的 Word 檔案流中萃取文字"""
+    try:
+        doc = docx.Document(file_bytes)
+        return "\n".join([para.text for para in doc.paragraphs])
+    except Exception as e:
+        return f"⚠️ Word 讀取失敗: {str(e)}"
 
 # ==========================================
 # 0. 靜態常數與黑名單定義
@@ -179,7 +206,7 @@ DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
 """
 
 DEFAULT_EXAM_PAPER = """1 OO市OO國小OO學年度上學期六年級自然科學領域期末評量  
-六年   班   號  姓名：       
+六年   班   號   姓名：       
 一、 是非題 （每題2 分，共20 分） 
  1.(   )「自製簡易小馬達」實驗中，線圈兩端的漆包線的漆面要完全刮除乾淨，才不會接觸不良，影響實驗。
  2.(   )礦物是由一種或多種不同大小、顏色的岩石所組成。
@@ -223,7 +250,7 @@ DEFAULT_EXAM_PAPER = """1 OO市OO國小OO學年度上學期六年級自然科學
   4.榕榕進行「觀察通電的電線對指北針的影響」實驗，將通電的電線擺在指北針上方，指針順時針偏轉，回答下面問題。
   （ ）(１)如果其他條件不變，將電線移到指北針下方，指針會 ○１順時針偏轉 ○２指向北方 ○３逆時針偏轉 ○４指向南方。
  （ ）(２)如果其他條件不變，將電流改變方向，指針會 ○１順時針偏轉 ○２逆時針偏轉 ○３指向北方         ○４指向南方。
-   （ ）(３)如果其他條件不變，將電線移到指北針下方，並       將電流改變方向，指針會 ○１順時針偏轉            ○２逆時針偏轉 ○３指向北方 ○４指向南方。
+   （ ）(３)如果其他條件不變，將電線移到指北針下方，並       將電流改變方向，指針會 ○１順時針偏轉             ○２逆時針偏轉 ○３指向北方 ○４指向南方。
       
 2 四、 簡答題 （每個答案2 分，共16 分） 1.請寫出兩種磁鐵和電磁鐵不同的特性。
     2.製作電磁鐵時，想要讓電磁鐵的磁力變強可以怎麼做？
@@ -251,10 +278,10 @@ DEFAULT_EXAM_PAPER = """1 OO市OO國小OO學年度上學期六年級自然科學
  3.    基隆瑞芳的水湳洞、金瓜石、九份蘊含100 多種礦物，幾乎佔臺灣礦石種類的三分之一，有「礦山版的亞馬遜森林」之美譽。
 作為臺灣金銅礦產開採的原鄉，因其成礦作用產生一系列獨特的地質地形，深深影響礦業設施與聚落的分布及擴展，而其礦床型態及礦物組合也影響礦業開採手法與臺灣礦物科學發展。
  （ ）(１)九份金瓜石是臺灣著名的礦石開採地區，在開採礦物後，下列哪一種不是辨別岩石種類方法？
-            ○１顏色 ○２硬度 ○３結晶外型 ○４岩石顆粒大小。
+             ○１顏色 ○２硬度 ○３結晶外型 ○４岩石顆粒大小。
  （ ）(２)此區域能形成許多礦物的原因，跟當地岩層中礦物質的多樣性與地底下高溫作用影響有關。
 因此造成礦物富集的原因，與哪一個作用最相關？
-          ○１風化作用 ○２侵蝕作用 ○３火山作用 ○４搬運作用。
+           ○１風化作用 ○２侵蝕作用 ○３火山作用 ○４搬運作用。
  （ ）(３)該地因為有許多地熱排氣孔，是個適合發展發電的環境，相對於臺灣其他地區，何處有類似的環境？
  ○１墾丁國家公園 ○２陽明山國家公園          ○３壽山國家自然公園 ○４台江國家公園。
   4.    地球本身就是一個巨大磁鐵，產生的磁場得以讓指北針持續指向北方。
@@ -576,7 +603,6 @@ def map_score_to_grade_str(avg_score: float) -> str:
 @st.cache_data(show_spinner=False)
 def run_batch_analysis_cached(question_list: List[str], current_term_set: set) -> pd.DataFrame:
     """為了避免重複運算，將分析引擎加入快取或使用獨立的運算函數"""
-    # 這裡實作用於批次與試卷分析
     pass # 稍後我們直接在流程內使用 session_state 來取代 cache
 
 def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, term_set: set) -> pd.DataFrame:
@@ -1031,7 +1057,7 @@ with tab2:
                 st.success(f"🎉 本次測試的試題 MDD 皆低於/等於當前標準門檻 ({mdd_threshold:.2f})，無須進行高負載句法拆句與修改！")
 
 # ==========================================
-# TAB 3: 整份考題分析 (結合 Session State 暫存架構)
+# TAB 3: 整份考題分析 (結合檔案上傳功能)
 # ==========================================
 with tab3:
     st.markdown("### 🧹 考題自動雜訊過濾與深度檢測")
@@ -1041,11 +1067,29 @@ with tab3:
     with col_param1:
         min_char_limit = st.slider("📏 採樣句數最低字數門檻", min_value=8, max_value=30, value=14, step=2)
     
-    raw_exam_paper = st.text_area("請貼上整份考題文字（目前暫不支援直書或雙欄；也不支援檔案直接上傳）：", height=320, placeholder=f"請在此直接貼上完整的考題內文...\n\n若未輸入內容點選分析，將自動載入預設試卷範例：\n{DEFAULT_EXAM_PAPER}")
+    # 🎯 檔案上傳元件
+    uploaded_file = st.file_uploader("📂 選擇上傳試卷檔案 (支援 PDF, Word, TXT)", type=["pdf", "docx", "txt"])
     
-    if st.button("🔍 雜訊過濾並開始分析考題", type="primary"):
-        exam_input = raw_exam_paper.strip() or DEFAULT_EXAM_PAPER
-        st.session_state['t3_warning'] = not raw_exam_paper.strip()
+    # 備用文字框
+    raw_exam_paper = st.text_area("或者直接貼上考題文字（優先使用上方的上傳檔案）：", height=200, placeholder=f"若不使用檔案上傳，請在此直接貼上完整的考題內文...\n\n若未輸入內容點選分析，將自動載入預設試卷範例。")
+    
+    if st.button("🔍 讀取檔案/文字並開始分析", type="primary"):
+        exam_input = ""
+        
+        # 邏輯判斷：優先處理上傳的檔案
+        if uploaded_file is not None:
+            with st.spinner(f"正在解析上傳的檔案：{uploaded_file.name} ..."):
+                if uploaded_file.name.lower().endswith(".pdf"):
+                    exam_input = extract_text_from_pdf(uploaded_file)
+                elif uploaded_file.name.lower().endswith(".docx"):
+                    exam_input = extract_text_from_docx(uploaded_file)
+                elif uploaded_file.name.lower().endswith(".txt"):
+                    exam_input = uploaded_file.getvalue().decode("utf-8")
+        else:
+            # 若沒有上傳檔案，則抓取文字框內容或載入範例
+            exam_input = raw_exam_paper.strip() or DEFAULT_EXAM_PAPER
+
+        st.session_state['t3_warning'] = not exam_input.strip() and uploaded_file is None
         
         with st.spinner("正在進行文本降噪、結構切割與深度特徵提取..."):
             extracted_sentences, filtered_noise = sanitize_exam_paper(exam_input, min_length=min_char_limit)
@@ -1068,7 +1112,7 @@ with tab3:
     # --- 以下為渲染區塊 ---
     if st.session_state.get('t3_run', False):
         if st.session_state.get('t3_warning'):
-            st.info("💡 您未輸入考題內容，已自動載入**預設考題範例**進行降噪與深度分析。")
+            st.info("💡 您未上傳檔案或輸入考題，已自動載入**預設考題範例**進行降噪與深度分析。")
             
         if st.session_state.get('t3_res_df') is not None:
             st.success(f"✅ 成功從考題中過濾雜訊，擷取出 **{st.session_state['t3_extracted']}** 個具代表性的有效試題語句！")
@@ -1116,7 +1160,7 @@ with tab3:
             
             st.download_button("📥 下載整份考題分析報告 CSV", display_df.to_csv(index=False).encode("utf-8-sig"), "考題分析報告.csv", "text/csv")
         else:
-            st.error("❌ 找不到符合字數門檻的有效句子，請嘗試降低採樣字數門檻！")
+            st.error("❌ 找不到符合字數門檻的有效句子，請嘗試降低採樣字數門檻，或確認上傳的檔案包含可讀取的純文字格式！")
 
 # ==========================================
 # TAB 4: 系統說明與文獻引用
@@ -1157,13 +1201,13 @@ with tab4:
     st.markdown("### 🛠️ 系統使用方式")
     st.markdown("""
     1. **設定對標基準 (側邊欄)**：
-       請先在左側邊欄設定您考卷的「目標對象」（如：國小 6年級 六都）。系統會自動載入該階段學生的平均 MDD 作為難度評估標準。
+        請先在左側邊欄設定您考卷的「目標對象」（如：國小 6年級 六都）。系統會自動載入該階段學生的平均 MDD 作為難度評估標準。
     2. **選擇分析模式**：
-       * **✍️ 單句分析**：適合針對特定難懂的課文長句進行深度診斷。
-       * **📋 多句分析**：可貼上多行單獨的句子（**提醒：請保持一句一列，記得換行**），可進行批次分析。
-       * **📄 試卷分析**：可直接貼上整份期中/期末考卷，系統會自動啟動「智慧降噪」，濾除題號、配分、指示句（如「請選出正確答案」），專注評估核心試題的閱讀難度。
+        * **✍️ 單句分析**：適合針對特定難懂的課文長句進行深度診斷。
+        * **📋 多句分析**：可貼上多行單獨的句子（**提醒：請保持一句一列，記得換行**），可進行批次分析。
+        * **📄 試卷分析**：支援 **PDF、Word 檔案上傳**，或直接貼上整份期中/期末考卷，系統會自動啟動「智慧降噪」，濾除題號、配分、指示句（如「請選出正確答案」），專注評估核心試題的閱讀難度。
     3. **AI 智慧改寫建議**：
-       若系統偵測到某題的 MDD 高於您設定的年級基準，系統會提供AI驅動的智慧拆句與改寫建議，協助教師在不改變題意的前提下降低閱讀門檻。
+        若系統偵測到某題的 MDD 高於您設定的年級基準，系統會提供AI驅動的智慧拆句與改寫建議，協助教師在不改變題意的前提下降低閱讀門檻。
     """)
     
     st.divider()
