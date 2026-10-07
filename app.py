@@ -896,17 +896,17 @@ st.markdown(
 tab1, tab2, tab3, tab4 = st.tabs(["✍️ 單句分析", "📋 多句分析", "📄 試卷分析", "📖 系統說明"])
 
 # ==========================================
-# TAB 1: 單句檢測 (結合 Session State 暫存架構)
+# TAB 1: 單句檢測 (改回 Placeholder 屬性)
 # ==========================================
 with tab1:
-    # 🌟 修改：將預設考題放入 value 屬性中，使其直接顯示在畫面上
-    question_text = st.text_area("題目文字", value=DEFAULT_SINGLE_Q, height=130)
+    question_text = st.text_area("題目文字", placeholder=DEFAULT_SINGLE_Q, height=130)
 
     if st.button("🚀 開始檢測單句", type="primary"):
         target_text = question_text.strip()
         st.session_state['t1_run'] = True
         st.session_state['t1_warning'] = not question_text.strip()
         
+        # 若無輸入，自動使用預設
         if not target_text:
             target_text = DEFAULT_SINGLE_Q
             
@@ -981,14 +981,13 @@ with tab1:
             }, use_container_width=True)
 
 # ==========================================
-# TAB 2: 多句批次查詢 (結合 Session State 暫存架構)
+# TAB 2: 多句批次查詢 (改回 Placeholder 屬性)
 # ==========================================
 with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
     if batch_mode == "📋 貼上多行文字":
-        # 🌟 修改：將預設考題放入 value 屬性中，使其直接顯示在畫面上
-        batch_text = st.text_area("每行一題：", value=DEFAULT_BATCH_Q, height=280)
+        batch_text = st.text_area("每行一題：", placeholder=DEFAULT_BATCH_Q, height=280)
         
         if st.button("⚡ 開始批次分析", type="primary"):
             target_batch_text = batch_text.strip() or DEFAULT_BATCH_Q
@@ -1042,7 +1041,7 @@ with tab2:
                 st.success(f"🎉 本次測試的試題 MDD 皆低於/等於當前標準門檻 ({mdd_threshold:.2f})，無須進行高負載句法拆句與修改！")
 
 # ==========================================
-# TAB 3: 整份考題分析 (結合檔案上傳功能)
+# TAB 3: 整份考題分析 (改回 Placeholder 屬性)
 # ==========================================
 with tab3:
     st.markdown("### 🧹 考題自動雜訊過濾與深度檢測")
@@ -1054,8 +1053,7 @@ with tab3:
     
     uploaded_file = st.file_uploader("📂 選擇上傳試卷檔案 (支援 PDF, Word, TXT)", type=["pdf", "docx", "txt"])
     
-    # 🌟 修改：將預設考題放入 value 屬性中，使其直接顯示在畫面上，並且調高高度讓它更好閱讀
-    raw_exam_paper = st.text_area("或者直接貼上考題文字（優先使用上方的上傳檔案）：", value=DEFAULT_EXAM_PAPER, height=350)
+    raw_exam_paper = st.text_area("或者直接貼上考題文字（優先使用上方的上傳檔案）：", placeholder=DEFAULT_EXAM_PAPER, height=350)
     
     if st.button("🔍 讀取檔案/文字並開始分析", type="primary"):
         exam_input = ""
@@ -1071,8 +1069,8 @@ with tab3:
                     exam_input = uploaded_file.getvalue().decode("utf-8")
         else:
             exam_input = raw_exam_paper.strip()
-            # 如果使用者什麼都沒改，或是把框框清空，我們就會使用預設考卷
-            if exam_input == DEFAULT_EXAM_PAPER.strip() or not exam_input:
+            # 🌟 若沒有輸入任何文字，即採用預設考題
+            if not exam_input:
                 exam_input = DEFAULT_EXAM_PAPER
                 is_using_default = True
 
