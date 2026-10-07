@@ -1082,7 +1082,7 @@ with tab3:
     
     uploaded_file = st.file_uploader("📂 選擇上傳試卷檔案 (支援 PDF, Word, TXT)", type=["pdf", "docx", "txt"])
     
-    raw_exam_paper = st.text_area("或者直接貼上考題文字（優先使用上方的上傳檔案）：", placeholder=DEFAULT_EXAM_PAPER, height=350)
+    raw_exam_paper = st.text_area("或者直接貼上考題文字（暫不支援直書形式）：", placeholder=DEFAULT_EXAM_PAPER, height=350)
     
     if st.button("🔍 讀取檔案/文字並開始分析", type="primary"):
         exam_input = ""
