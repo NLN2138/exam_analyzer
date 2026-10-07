@@ -20,7 +20,7 @@ openai_api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
 client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
 def get_smart_split_suggestion(sentence: str, mdd: float) -> str:
-    """呼叫 ChatGPT API 進行智慧拆句建議（暫時移除瓶頸定位參數以防誤導）"""
+    """呼叫 ChatGPT API 進行智慧拆句建議"""
     if not client:
         return "⚠️ 未偵測到 OPENAI_API_KEY，請先至 Streamlit Secrets 設定金鑰。"
         
@@ -187,6 +187,9 @@ INSTRUCTION_PATTERNS = [
     r'看圖[回答|填]', r'勾選', r'連連看', r'圈圈看'
 ]
 
+# ==========================================
+# 預設題庫內容
+# ==========================================
 DEFAULT_SINGLE_Q = "樹上的蘋果又紅又大，看起來非常好吃。"
 
 DEFAULT_BATCH_Q = """樹上的蘋果又紅又大，看起來非常好吃。
@@ -395,9 +398,7 @@ def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str],
     else:
         cleaned_body = raw_text
 
-    # 【新增】將並排的選項 (如 ○１... ○２... 或 A... B...) 強制拆分到新行
     cleaned = re.sub(r'(?<=.)\s*(○[0-9１-９]|[①-⑨]|\([A-Da-dＡ-Ｄａ-ｄ]\)|[A-Da-dＡ-Ｄａ-ｄ][\.、])', r'\n\1', cleaned_body)
-
     cleaned = re.sub(r'[(（][^()（）]*每[題字格分].*?[)）]', '', cleaned)
     cleaned = re.sub(r'(?:班級|學號|座號|姓名|分數|得分|閱卷老師|家長簽章)\s*[:：_＿\s].*', '', cleaned)
     cleaned = re.sub(r'(?:市立|縣立|國中|高中|國民小學|學年度|評量試卷|期中|期末).*', '', cleaned)
@@ -415,8 +416,6 @@ def sanitize_exam_paper(raw_text: str, min_length: int = 14) -> Tuple[List[str],
     
     for s in raw_sentences:
         s_strip = s.strip()
-        
-        # 【新增】清除句首的題號或選項標籤，避免干擾字數與句法判斷
         s_strip = re.sub(r'^(○[0-9１-９]|[①-⑨]|\([A-Da-dＡ-Ｄａ-ｄ]\)|[A-Da-dＡ-Ｄａ-ｄ][\.、]|\d+\s*[\.、．])\s*', '', s_strip)
         
         if not s_strip:
@@ -592,18 +591,12 @@ def predict_grade(features: Dict[str, Any], ml_model: Optional[Any]) -> Tuple[st
     
     return grade_str, score
 
-
 def map_score_to_grade_str(avg_score: float) -> str:
     if avg_score >= 10.0: return "10-12 年級 (高中以上)"
     elif avg_score >= 7.5: return "7-9 年級 (國中)"
     elif avg_score >= 5.0: return "5-6 年級 (國小)"
     elif avg_score >= 3.0: return "3-4 年級 (國小)"
     else: return "1-2 年級 (國小)"
-
-@st.cache_data(show_spinner=False)
-def run_batch_analysis_cached(question_list: List[str], current_term_set: set) -> pd.DataFrame:
-    """為了避免重複運算，將分析引擎加入快取或使用獨立的運算函數"""
-    pass # 稍後我們直接在流程內使用 session_state 來取代 cache
 
 def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, term_set: set) -> pd.DataFrame:
     results = []
@@ -631,25 +624,21 @@ def run_batch_analysis(question_list: List[str], nlp_model, difficulty_model, te
     return pd.DataFrame(results)
 
 # ==========================================
-# 4.5 AI 改寫建議與降幅渲染共用模組 (含按鈕狀態保存)
+# 4.5 AI 改寫建議與降幅渲染共用模組
 # ==========================================
 def render_ai_suggestion_ui(original_text: str, old_mdd: float, old_max_dd: int, nlp_model, term_set, unique_key: str):
-    """處理 AI 呼叫並將改寫結果重新算 MDD 以顯示降幅的共用 UI 模組"""
     if not client:
         st.info("💡 請在 Streamlit Secrets 設定 `OPENAI_API_KEY` 即可解鎖 AI 智慧拆句改寫建議！")
         return
         
     ai_state_key = f"ai_result_{unique_key}"
     
-    # 如果還沒產生建議，顯示按鈕
     if ai_state_key not in st.session_state:
         if st.button("✨ 點擊獲取 AI 智慧改寫建議", key=unique_key):
             with st.spinner("🤖 AI 正在進行智慧拆句分析..."):
                 suggestion = get_smart_split_suggestion(original_text, round(old_mdd, 2))
                 st.session_state[ai_state_key] = suggestion
-            # 按鈕被按下的當下，session state 更新完成，Streamlit 會自動重新渲染畫面
             
-    # 如果 session state 裡面已經有結果，直接顯示 (不用重新算)
     if ai_state_key in st.session_state:
         suggestion = st.session_state[ai_state_key]
         st.info(suggestion)
@@ -890,13 +879,10 @@ st.markdown(
     .sticky-header h1 {{ margin: 0; padding-bottom: 0.2rem; font-size: 2.25rem; font-weight: 700; }}
     .sticky-header p {{ margin: 0; font-size: 1rem; color: var(--text-color); opacity: 0.8; }}
     
-    /* 👇 就是加在這裡：強制縮小 metric 數值的字體 👇 */
     [data-testid="stMetricValue"] > div {{
-        font-size: 1.35rem !important; /* 預設為 1.8rem，改為 1.35rem 左右較為精緻 */
+        font-size: 1.35rem !important; 
         line-height: 1.2 !important;
     }}
-    /* 👆 加到這裡結束 👆 */
-    
     </style>
     
     <div class="sticky-header">
@@ -913,28 +899,29 @@ tab1, tab2, tab3, tab4 = st.tabs(["✍️ 單句分析", "📋 多句分析", "�
 # TAB 1: 單句檢測 (結合 Session State 暫存架構)
 # ==========================================
 with tab1:
-    question_text = st.text_area("題目文字", height=130, placeholder=f"請輸入單一試題...\n\n若未輸入內容點選分析，將自動載入預設範例題：\n{DEFAULT_SINGLE_Q}")
+    # 🌟 修改：將預設考題放入 value 屬性中，使其直接顯示在畫面上
+    question_text = st.text_area("題目文字", value=DEFAULT_SINGLE_Q, height=130)
 
     if st.button("🚀 開始檢測單句", type="primary"):
-        target_text = question_text.strip() or DEFAULT_SINGLE_Q
+        target_text = question_text.strip()
         st.session_state['t1_run'] = True
         st.session_state['t1_warning'] = not question_text.strip()
         
+        if not target_text:
+            target_text = DEFAULT_SINGLE_Q
+            
         with st.spinner("分析中..."):
             doc = nlp(target_text)
             features = extract_features_from_doc(doc, current_term_set)
             predicted_grade_str, predicted_raw_score = predict_grade(features, model)
             
-            # 將運算結果存入 session_state
             st.session_state['t1_feat'] = features
             st.session_state['t1_grade'] = predicted_grade_str
             st.session_state['t1_score'] = predicted_raw_score
             
-            # 清除舊的 AI 結果
             if "ai_result_btn_ai_single" in st.session_state:
                 del st.session_state["ai_result_btn_ai_single"]
 
-    # --- 以下為渲染區塊 ---
     if st.session_state.get('t1_run', False):
         if st.session_state.get('t1_warning'):
             st.info("💡 您未輸入內容，已自動載入**預設單句**進行分析。")
@@ -962,7 +949,6 @@ with tab1:
         cols[3].metric("🔗 複句結構", features["clause_types"])
         st.write("")
         
-        # --- 單句：高難度警示與 AI 建議 ---
         mdd_threshold = norm_mean if norm_mean is not None else 3.6
         if features['mdd'] > mdd_threshold:
             st.markdown("### 🚨 高難度警示與智慧拆句建議")
@@ -1001,7 +987,9 @@ with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
     if batch_mode == "📋 貼上多行文字":
-        batch_text = st.text_area("每行一題：", height=280, placeholder=f"請貼上多行試題...\n\n預設範例：\n{DEFAULT_BATCH_Q}")
+        # 🌟 修改：將預設考題放入 value 屬性中，使其直接顯示在畫面上
+        batch_text = st.text_area("每行一題：", value=DEFAULT_BATCH_Q, height=280)
+        
         if st.button("⚡ 開始批次分析", type="primary"):
             target_batch_text = batch_text.strip() or DEFAULT_BATCH_Q
             q_list = [line.strip() for line in target_batch_text.split("\n") if line.strip()]
@@ -1011,12 +999,10 @@ with tab2:
                 st.session_state['t2_run'] = True
                 st.session_state['t2_res_df'] = res_df
                 
-                # 清除舊的 AI 結果
                 for k in list(st.session_state.keys()):
                     if k.startswith("ai_result_btn_ai_batch_"):
                         del st.session_state[k]
 
-        # --- 以下為渲染區塊 ---
         if st.session_state.get('t2_run', False) and 't2_res_df' in st.session_state:
             res_df = st.session_state['t2_res_df']
             st.divider()
@@ -1030,7 +1016,6 @@ with tab2:
                 st.markdown("### 📋 特徵明細")
                 st.dataframe(display_df, use_container_width=True)
 
-            # --- 批次：抓出大於基準標準的最難 Top 2 ---
             mdd_threshold = norm_mean if norm_mean is not None else 3.6
             high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
             
@@ -1067,17 +1052,15 @@ with tab3:
     with col_param1:
         min_char_limit = st.slider("📏 採樣句數最低字數門檻", min_value=8, max_value=30, value=14, step=2)
     
-    # 🎯 檔案上傳元件
     uploaded_file = st.file_uploader("📂 選擇上傳試卷檔案 (支援 PDF, Word, TXT)", type=["pdf", "docx", "txt"])
     
-    # 備用文字框
-    raw_exam_paper = st.text_area("或者直接貼上考題文字（優先使用上方的上傳檔案）：", height=200, placeholder=f"若不使用檔案上傳，請在此直接貼上完整的考題內文...\n\n若未輸入內容點選分析，將自動載入預設試卷範例。")
+    # 🌟 修改：將預設考題放入 value 屬性中，使其直接顯示在畫面上，並且調高高度讓它更好閱讀
+    raw_exam_paper = st.text_area("或者直接貼上考題文字（優先使用上方的上傳檔案）：", value=DEFAULT_EXAM_PAPER, height=350)
     
     if st.button("🔍 讀取檔案/文字並開始分析", type="primary"):
         exam_input = ""
-        is_using_default = False # 🌟 新增一個標記，用來記錄是否使用了預設考卷
+        is_using_default = False
         
-        # 邏輯判斷：優先處理上傳的檔案
         if uploaded_file is not None:
             with st.spinner(f"正在解析上傳的檔案：{uploaded_file.name} ..."):
                 if uploaded_file.name.lower().endswith(".pdf"):
@@ -1087,19 +1070,15 @@ with tab3:
                 elif uploaded_file.name.lower().endswith(".txt"):
                     exam_input = uploaded_file.getvalue().decode("utf-8")
         else:
-            # 若沒有上傳檔案，則檢查文字框是否有貼上內容
-            if raw_exam_paper.strip():
-                exam_input = raw_exam_paper.strip()
-            else:
-                # 🌟 如果沒檔案也沒文字，就啟用您提供的預設試卷 (DEFAULT_EXAM_PAPER)
+            exam_input = raw_exam_paper.strip()
+            # 如果使用者什麼都沒改，或是把框框清空，我們就會使用預設考卷
+            if exam_input == DEFAULT_EXAM_PAPER.strip() or not exam_input:
                 exam_input = DEFAULT_EXAM_PAPER
                 is_using_default = True
 
-        # 將是否使用預設的狀態存入 session_state，用來觸發前端的藍色提示框
         st.session_state['t3_warning'] = is_using_default
         
         with st.spinner("正在進行文本降噪、結構切割與深度特徵提取..."):
-            # 這裡的 exam_input 就會是完美的預設考卷了
             extracted_sentences, filtered_noise = sanitize_exam_paper(exam_input, min_length=min_char_limit)
             
             if extracted_sentences:
@@ -1112,15 +1091,13 @@ with tab3:
                 st.session_state['t3_run'] = True
                 st.session_state['t3_res_df'] = None
                 
-            # 清除舊的 AI 結果
             for k in list(st.session_state.keys()):
                 if k.startswith("ai_result_btn_ai_exam_"):
                     del st.session_state[k]
 
-    # --- 以下為渲染區塊 ---
     if st.session_state.get('t3_run', False):
         if st.session_state.get('t3_warning'):
-            st.info("💡 您未上傳檔案或輸入考題，已自動載入**預設考題範例**進行降噪與深度分析。")
+            st.info("💡 目前使用的分析內容為系統內建的**預設考題範例**。您可以在上方文字框貼上自己的考卷！")
             
         if st.session_state.get('t3_res_df') is not None:
             st.success(f"✅ 成功從考題中過濾雜訊，擷取出 **{st.session_state['t3_extracted']}** 個具代表性的有效試題語句！")
@@ -1136,7 +1113,6 @@ with tab3:
                 st.markdown("### 📋 特徵明細")
                 st.dataframe(display_df, use_container_width=True)
 
-            # --- 試卷：抓出大於基準標準的最難 Top 2 ---
             mdd_threshold = norm_mean if norm_mean is not None else 3.6
             high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
             
