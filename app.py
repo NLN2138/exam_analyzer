@@ -896,7 +896,7 @@ st.markdown(
 tab1, tab2, tab3, tab4 = st.tabs(["✍️ 單句分析", "📋 多句分析", "📄 試卷分析", "📖 系統說明"])
 
 # ==========================================
-# TAB 1: 單句檢測 (改回 Placeholder 屬性)
+# TAB 1: 單句檢測 (Placeholder 屬性)
 # ==========================================
 with tab1:
     question_text = st.text_area("題目文字", placeholder=DEFAULT_SINGLE_Q, height=130)
@@ -981,67 +981,104 @@ with tab1:
             }, use_container_width=True)
 
 # ==========================================
-# TAB 2: 多句批次查詢 (改回 Placeholder 屬性)
+# TAB 2: 多句批次查詢 (修復：已加上檔案上傳邏輯)
 # ==========================================
 with tab2:
     batch_mode = st.radio("輸入方式：", ["📋 貼上多行文字", "📂 上傳檔案"], horizontal=True)
     
+    q_list = []
+    run_analysis = False
+    is_using_default_batch = False
+    
+    # 【模式 A】貼上多行文字
     if batch_mode == "📋 貼上多行文字":
         batch_text = st.text_area("每行一題：", placeholder=DEFAULT_BATCH_Q, height=280)
         
         if st.button("⚡ 開始批次分析", type="primary"):
-            target_batch_text = batch_text.strip() or DEFAULT_BATCH_Q
+            target_batch_text = batch_text.strip()
+            if not target_batch_text:
+                target_batch_text = DEFAULT_BATCH_Q
+                is_using_default_batch = True
+                
             q_list = [line.strip() for line in target_batch_text.split("\n") if line.strip()]
+            run_analysis = True
             
-            if q_list:
-                res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
-                st.session_state['t2_run'] = True
-                st.session_state['t2_res_df'] = res_df
-                
-                for k in list(st.session_state.keys()):
-                    if k.startswith("ai_result_btn_ai_batch_"):
-                        del st.session_state[k]
-
-        if st.session_state.get('t2_run', False) and 't2_res_df' in st.session_state:
-            res_df = st.session_state['t2_res_df']
-            st.divider()
-            
-            display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df, norm_mean, norm_std)
-            
-            if show_charts: 
-                render_statistics_charts(display_df)
-            
-            if show_table: 
-                st.markdown("### 📋 特徵明細")
-                st.dataframe(display_df, use_container_width=True)
-
-            mdd_threshold = norm_mean if norm_mean is not None else 3.6
-            high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
-            
-            if not high_diff_df.empty:
-                st.markdown("### 🚨 考題高難度警示與 AI 智慧拆句 (Top 2)")
-                st.caption(f"為避免 API 濫用並聚焦重點，系統僅針對 **高於標準 ({mdd_threshold:.2f})** 且最具鑑別度的 **前 2 句** 提供 AI 改寫建議。")
-                
-                top_2_hardest = high_diff_df.sort_values(by="MDD數值", ascending=False).head(2)
-                
-                for idx, row in top_2_hardest.iterrows():
-                    with st.expander(f"⚠️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
-                        st.write(f"**原句**：{row['題目內容']}")
-                        
-                        render_ai_suggestion_ui(
-                            original_text=row['題目內容'], 
-                            old_mdd=row['MDD數值'], 
-                            old_max_dd=row['最大依存距離'], 
-                            nlp_model=nlp, 
-                            term_set=current_term_set,
-                            unique_key=f"btn_ai_batch_{idx}"
-                        )
+    # 【模式 B】上傳檔案
+    else:
+        uploaded_batch_file = st.file_uploader("📂 選擇上傳試題檔案 (支援 PDF, Word, TXT)\n※ 檔案內容請保持「一行一題」的格式", type=["pdf", "docx", "txt"])
+        
+        if st.button("⚡ 讀取檔案並開始分析", type="primary"):
+            if uploaded_batch_file is not None:
+                with st.spinner(f"正在解析檔案：{uploaded_batch_file.name} ..."):
+                    if uploaded_batch_file.name.lower().endswith(".pdf"):
+                        file_text = extract_text_from_pdf(uploaded_batch_file)
+                    elif uploaded_batch_file.name.lower().endswith(".docx"):
+                        file_text = extract_text_from_docx(uploaded_batch_file)
+                    elif uploaded_batch_file.name.lower().endswith(".txt"):
+                        file_text = uploaded_batch_file.getvalue().decode("utf-8")
+                    
+                    q_list = [line.strip() for line in file_text.split("\n") if line.strip()]
+                    run_analysis = True
+                    
+                    if not q_list:
+                        st.error("❌ 檔案中沒有找到有效的文字行！")
             else:
-                st.markdown("### ✨ 句法結構檢測通過")
-                st.success(f"🎉 本次測試的試題 MDD 皆低於/等於當前標準門檻 ({mdd_threshold:.2f})，無須進行高負載句法拆句與修改！")
+                st.warning("⚠️ 請先選擇要上傳的檔案。")
+                
+    # 進行分析與渲染 (兩種模式共用)
+    if run_analysis and q_list:
+        st.session_state['t2_warning'] = is_using_default_batch
+        res_df = run_batch_analysis(q_list, nlp, model, current_term_set)
+        st.session_state['t2_run'] = True
+        st.session_state['t2_res_df'] = res_df
+        
+        for k in list(st.session_state.keys()):
+            if k.startswith("ai_result_btn_ai_batch_"):
+                del st.session_state[k]
+
+    if st.session_state.get('t2_run', False) and 't2_res_df' in st.session_state:
+        if st.session_state.get('t2_warning'):
+            st.info("💡 您未輸入內容，已自動載入**預設批次考題**進行分析。")
+            
+        res_df = st.session_state['t2_res_df']
+        st.divider()
+        
+        display_df, avg_score, total_chars, avg_mdd = render_overall_summary(res_df, norm_mean, norm_std)
+        
+        if show_charts: 
+            render_statistics_charts(display_df)
+        
+        if show_table: 
+            st.markdown("### 📋 特徵明細")
+            st.dataframe(display_df, use_container_width=True)
+
+        mdd_threshold = norm_mean if norm_mean is not None else 3.6
+        high_diff_df = display_df[display_df["MDD數值"] > mdd_threshold].copy()
+        
+        if not high_diff_df.empty:
+            st.markdown("### 🚨 考題高難度警示與 AI 智慧拆句 (Top 2)")
+            st.caption(f"為避免 API 濫用並聚焦重點，系統僅針對 **高於標準 ({mdd_threshold:.2f})** 且最具鑑別度的 **前 2 句** 提供 AI 改寫建議。")
+            
+            top_2_hardest = high_diff_df.sort_values(by="MDD數值", ascending=False).head(2)
+            
+            for idx, row in top_2_hardest.iterrows():
+                with st.expander(f"⚠️ 高負載試題 (MDD: {row['MDD數值']} | 最大距離: {row['最大依存距離']})：{row['題目內容'][:15]}...", expanded=True):
+                    st.write(f"**原句**：{row['題目內容']}")
+                    
+                    render_ai_suggestion_ui(
+                        original_text=row['題目內容'], 
+                        old_mdd=row['MDD數值'], 
+                        old_max_dd=row['最大依存距離'], 
+                        nlp_model=nlp, 
+                        term_set=current_term_set,
+                        unique_key=f"btn_ai_batch_{idx}"
+                    )
+        else:
+            st.markdown("### ✨ 句法結構檢測通過")
+            st.success(f"🎉 本次測試的試題 MDD 皆低於/等於當前標準門檻 ({mdd_threshold:.2f})，無須進行高負載句法拆句與修改！")
 
 # ==========================================
-# TAB 3: 整份考題分析 (改回 Placeholder 屬性)
+# TAB 3: 整份考題分析 (Placeholder 屬性)
 # ==========================================
 with tab3:
     st.markdown("### 🧹 考題自動雜訊過濾與深度檢測")
@@ -1186,7 +1223,7 @@ with tab4:
         請先在左側邊欄設定您考卷的「目標對象」（如：國小 6年級 六都）。系統會自動載入該階段學生的平均 MDD 作為難度評估標準。
     2. **選擇分析模式**：
         * **✍️ 單句分析**：適合針對特定難懂的課文長句進行深度診斷。
-        * **📋 多句分析**：可貼上多行單獨的句子（**提醒：請保持一句一列，記得換行**），可進行批次分析。
+        * **📋 多句分析**：支援**檔案上傳**與**多行貼上**。
         * **📄 試卷分析**：支援 **PDF、Word 檔案上傳**，或直接貼上整份期中/期末考卷，系統會自動啟動「智慧降噪」，濾除題號、配分、指示句（如「請選出正確答案」），專注評估核心試題的閱讀難度。
     3. **AI 智慧改寫建議**：
         若系統偵測到某題的 MDD 高於您設定的年級基準，系統會提供AI驅動的智慧拆句與改寫建議，協助教師在不改變題意的前提下降低閱讀門檻。
