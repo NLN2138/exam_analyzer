@@ -999,7 +999,7 @@ with tab2:
     else:
         uploaded_batch_file = st.file_uploader("📂 選擇上傳試題檔案 (支援 PDF, Word, TXT)\n※ 檔案內容請保持「一行一題」的格式", type=["pdf", "docx", "txt"])
         
-        if st.button("⚡ 開始分析整份文本", type="primary"):
+        if st.button("⚡ 開始批次分析", type="primary"):
             if uploaded_batch_file is not None:
                 with st.spinner(f"正在解析檔案：{uploaded_batch_file.name} ..."):
                     if uploaded_batch_file.name.lower().endswith(".pdf"):
@@ -1084,7 +1084,7 @@ with tab3:
     
     raw_exam_paper = st.text_area("或者直接貼上考題文字（暫不支援直書形式）：", placeholder=DEFAULT_EXAM_PAPER, height=350)
     
-    if st.button("🔍 讀取檔案/文字並開始分析", type="primary"):
+    if st.button("🔍 開始分析整份文本", type="primary"):
         exam_input = ""
         is_using_default = False
         
