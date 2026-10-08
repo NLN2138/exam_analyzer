@@ -999,7 +999,7 @@ with tab2:
     else:
         uploaded_batch_file = st.file_uploader("📂 選擇上傳試題檔案 (支援 PDF, Word, TXT)\n※ 檔案內容請保持「一行一題」的格式", type=["pdf", "docx", "txt"])
         
-        if st.button("⚡ 讀取檔案並開始分析", type="primary"):
+        if st.button("⚡ 開始分析文本", type="primary"):
             if uploaded_batch_file is not None:
                 with st.spinner(f"正在解析檔案：{uploaded_batch_file.name} ..."):
                     if uploaded_batch_file.name.lower().endswith(".pdf"):
