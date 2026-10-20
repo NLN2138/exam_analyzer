@@ -805,7 +805,7 @@ def render_statistics_charts(df: pd.DataFrame):
 # 6. 前端介面與頁籤規劃
 # ==========================================
 with st.sidebar:
-    st.markdown("### 🎯 科目與參照基準設定")
+    st.markdown("### 🎯 參照基準設定")
     subject = st.selectbox("學科", ["全部學科", "國語文", "數學", "社會", "自然"])
     
     ref_school = st.selectbox("學制", ["國小", "國中", "高中"])
