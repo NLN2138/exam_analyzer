@@ -25,14 +25,14 @@ def get_smart_split_suggestion(sentence: str, mdd: float) -> str:
         return "⚠️ 未偵測到 OPENAI_API_KEY，請先至 Streamlit Secrets 設定金鑰。"
         
     prompt = f"""
-    你是一位專業的華語文教材編輯與句法學專家。
-    請根據以下高難度句子（MDD: {mdd}）進行「智慧拆句與改寫建議」。
+    你是一位專業的華語文教師，非常熟悉臺灣教育現場的學生閱讀習慣與自然語感。
+    請根據以下高難度句子（MDD: {mdd}）進行「語意順暢與降載改寫」。
 
-    請依據以下原則給出具體建議：
-    1. 依據標點、轉折/因果關聯詞或連動動詞節點進行斷句。
-    2. 將長情境鋪陳或過長的修飾語獨立成句。
-    3. 改寫後的句子應保持原意，但大幅降低學生的認知負荷（MDD）。
-
+    請依據以下原則給出具體建議，此原則需適用於所有學科句型：
+    1. 【微調降載，不宜過碎】：不需要過度零碎地暴力切斷句子，要比原句「簡單、順口」。請針對最耗腦力的部分（如過長的前置修飾語或複雜嵌套結構）進行適度梳理或重組。
+    2. 【臺灣華語自然語感】：絕對避免機器人翻譯腔。請善用中文原生的「流水句」習慣，透過標點符號的停頓或語意順敘來自然銜接。
+    3. 【精準保留原意】：改寫後必須100%保留原本的學科知識點、專有名詞與邏輯關聯，不能因為改寫而改變測驗焦點。
+    
     原句：
     {sentence}
 
@@ -40,11 +40,16 @@ def get_smart_split_suggestion(sentence: str, mdd: float) -> str:
     **【複雜度分析】**：簡短一句話說明為何這句負擔大。
     **【改寫建議】**：(提供拆分或重組後的句子，並用亮點標示修改處)
     """
+# 1. 依據標點、轉折/因果關聯詞或連動動詞節點進行斷句。
+# 2. 將長情境鋪陳或過長的修飾語獨立成句。
+# 3. 改寫後的句子應保持原意，但大幅降低學生的認知負荷（MDD）。
+
+# 將 temperature 稍微調升至 0.4，讓 AI 寫出的句子更自然、不死板
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini", 
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
+            temperature=0.4 
         )
         return response.choices[0].message.content
     except Exception as e:
