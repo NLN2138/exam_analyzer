@@ -25,7 +25,7 @@ def get_smart_split_suggestion(sentence: str, mdd: float, target_level: str) -> 
         return "⚠️ 未偵測到 OPENAI_API_KEY，請先至 Streamlit Secrets 設定金鑰。"
         
     prompt = f"""
-    你是一位專業的華語文教材編輯與句法學專家，非常熟悉臺灣教育現場的學生閱讀習慣與自然語感。
+    你是一位專業的華語文教師，非常熟悉臺灣教育現場的學生閱讀習慣與自然語感。
     請根據以下高難度句子（當前 MDD: {mdd}）進行「語意順暢與降載改寫」。
 
     【目標對象】：{target_level} (請務必符合此階段學生的閱讀理解能力)
@@ -859,7 +859,7 @@ with st.sidebar:
             base_mean = norm_row.iloc[0]['平均MDD']
             base_std = norm_row.iloc[0]['標準差']
             
-            if eval_mode == "資源班 (測試中)":
+            if eval_mode == "資源班":
                 st.markdown("#### 🤝 特教降載設定")
                 deduction_option = st.selectbox("MDD 降載幅度", ["-0.3", "-0.5", "-0.7", "-1.0", "-1.3", "-1.5", "-1.7", "自行填寫減少數值"])
                 if deduction_option == "自行填寫減少數值":
@@ -1290,3 +1290,4 @@ with tab4:
 
     st.caption("※ 本系統之 MDD 基準數據為預擬值，僅作測試用。")
     st.caption("※ 本系統目前仍為前導版本，仍持續測試調整中，相關數值和內容僅供學術討論與概念驗證參考。")
+    st.caption("※ 格式解析差異提醒：由於 PDF 檔案底層排版與隱形換行符號的影響，系統在萃取文字與執行「智慧降噪」時，其斷句切割結果可能與「直接複製貼上」略有不同，進而使 MDD 數值產生微小落差。若需最嚴謹的評估基準，建議優先採用純文字貼上或上傳 Word 檔案。")
