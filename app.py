@@ -886,10 +886,10 @@ with st.sidebar:
                 
                 if adj_val < 0:
                     norm_text = f"基準: {norm_mean:.2f} (原常模降載 {abs(adj_val):.2f})"
-                    target_level = f"{ref_region} {ref_school} {ref_grade} (特教資源班，需降低認知負擔與長句)"
+                    target_level = f"{ref_region} {ref_school} {ref_grade} (特教資源班)"
                 elif adj_val > 0:
                     norm_text = f"基準: {norm_mean:.2f} (原常模提升 {adj_val:.2f})"
-                    target_level = f"{ref_region} {ref_school} {ref_grade} (資優資源班，能理解更複雜的句型結構)"
+                    target_level = f"{ref_region} {ref_school} {ref_grade} (資優資源班)"
                 else:
                     norm_text = f"基準: {norm_mean:.2f} (未調整)"
                     target_level = f"{ref_region} {ref_school} {ref_grade} (資源班)"
