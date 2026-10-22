@@ -870,7 +870,7 @@ with st.sidebar:
                 norm_mean = max(1.0, base_mean - deduction_val)
                 norm_std = base_std
                 norm_text = f"基準: {norm_mean:.2f} (原常模降載 {deduction_val:.2f})"
-                target_level = f"{ref_region} {ref_school} {ref_grade} (資源班，需大幅降低認知負擔與長句)"
+                target_level = f"{ref_region} {ref_school} {ref_grade} (資源班)"
             else:
                 norm_mean = base_mean
                 norm_std = base_std
