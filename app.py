@@ -25,7 +25,7 @@ def get_smart_split_suggestion(sentence: str, mdd: float, target_level: str) -> 
         return "⚠️ 未偵測到 OPENAI_API_KEY，請先至 Streamlit Secrets 設定金鑰。"
         
     prompt = f"""
-    你是一位專業的華語文教師，非常熟悉臺灣教育現場的學生閱讀習慣與自然語感。
+    你是一位專業的華語文教材編輯與句法學專家，非常熟悉臺灣教育現場的學生閱讀習慣與自然語感。
     請根據以下高難度句子（當前 MDD: {mdd}）進行「語意順暢與降載改寫」。
 
     【目標對象】：{target_level} (請務必符合此階段學生的閱讀理解能力)
@@ -883,7 +883,10 @@ with st.sidebar:
     else: 
         current_term_set = SUBJECT_TERMS.get("國語文", set()) 
         st.markdown("#### 🌏 華語教材版本設定")
-        csl_version = st.selectbox("教材版本", ["T版", "L版", "V版"])
+        csl_version_full = st.selectbox("教材版本", ["T版 (共7冊)", "L版 (共12冊)", "V版 (共5冊)"])
+        
+        # 顯示時只抓取括號前面的名稱 (例如把 "T版 (共7冊)" 變成 "T版")
+        csl_version = csl_version_full.split(" ")[0]
         
         CSL_MDD_NORM = {
             "T版 (共7冊)": [3.20, 3.40, 3.60, 3.80, 4.00, 4.15, 4.30],
@@ -891,7 +894,7 @@ with st.sidebar:
             "V版 (共5冊)": [3.20, 3.50, 3.80, 4.10, 4.30]
         }
         
-        vol_list = CSL_MDD_NORM[csl_version]
+        vol_list = CSL_MDD_NORM[csl_version_full]
         csl_vol = st.selectbox("冊別", [f"第{i+1}冊" for i in range(len(vol_list))])
         
         vol_idx = int(csl_vol.replace("第", "").replace("冊", "")) - 1
