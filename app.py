@@ -31,7 +31,7 @@ def get_smart_split_suggestion(sentence: str, mdd: float, target_level: str) -> 
     【目標對象】：{target_level} (請務必符合此階段學生的閱讀理解能力)
 
     請依據以下原則給出具體建議，此原則需適用於所有學科句型：
-    1. 【符合目標年級的微調降載】：不需要過度零碎地暴力切斷句子，只需將超出「{target_level}」認知負荷的冗長修飾語或嵌套結構適度梳理，使其「簡單順口一點點」即可。絕對不可過度簡化至低年級程度（除非目標對象為資源班或初階華語學習者）。
+    1. 【符合目標年級的微調降載】：不需要過度零碎地暴力切斷句子，只需將超出「{target_level}」認知負荷的冗長修飾語或嵌套結構適度梳理，使其「簡單順口一點點」即可。絕對不可過度簡化至低年級程度（除非目標對象為特教資源班或初階華語學習者）。
     2. 【臺灣華語自然語感】：絕對避免機器人翻譯腔。請善用中文原生的「流水句」習慣，透過標點符號的停頓或語意順敘來自然銜接。
     3. 【精準保留原意】：改寫後必須100%保留原本的學科知識點、專有名詞與邏輯關聯，不能因為改寫而改變測驗焦點。
 
@@ -860,17 +860,25 @@ with st.sidebar:
             base_std = norm_row.iloc[0]['標準差']
             
             if eval_mode == "資源班":
-                st.markdown("#### 🤝 特教降載設定")
-                deduction_option = st.selectbox("MDD 降載幅度", ["-0.3", "-0.5", "-0.7", "-1.0", "-1.3", "-1.5", "-1.7", "自行填寫減少數值"])
-                if deduction_option == "自行填寫減少數值":
-                    deduction_val = st.number_input("輸入要減少的數值 (例如 1.2)", min_value=0.0, max_value=5.0, value=1.0, step=0.1)
+                st.markdown("#### 🤝 資源班難度調整")
+                adj_option = st.selectbox("MDD 調整幅度", ["-2.0", "-1.5", "-1.0", "+1.0", "+1.5", "+2.0", "自行輸入正負值"])
+                if adj_option == "自行輸入正負值":
+                    adj_val = st.number_input("輸入調整數值 (降載填負值，資優填正值)", min_value=-5.0, max_value=5.0, value=-1.0, step=0.1)
                 else:
-                    deduction_val = abs(float(deduction_option))
+                    adj_val = float(adj_option.replace("+", ""))
                     
-                norm_mean = max(1.0, base_mean - deduction_val)
+                norm_mean = max(1.0, base_mean + adj_val)
                 norm_std = base_std
-                norm_text = f"基準: {norm_mean:.2f} (原常模降載 {deduction_val:.2f})"
-                target_level = f"{ref_region} {ref_school} {ref_grade} (資源班)"
+                
+                if adj_val < 0:
+                    norm_text = f"基準: {norm_mean:.2f} (原常模降載 {abs(adj_val):.2f})"
+                    target_level = f"{ref_region} {ref_school} {ref_grade} (特教資源班，需降低認知負擔與長句)"
+                elif adj_val > 0:
+                    norm_text = f"基準: {norm_mean:.2f} (原常模提升 {adj_val:.2f})"
+                    target_level = f"{ref_region} {ref_school} {ref_grade} (資優資源班，能理解更複雜的句型結構)"
+                else:
+                    norm_text = f"基準: {norm_mean:.2f} (未調整)"
+                    target_level = f"{ref_region} {ref_school} {ref_grade} (資源班)"
             else:
                 norm_mean = base_mean
                 norm_std = base_std
@@ -885,7 +893,6 @@ with st.sidebar:
         st.markdown("#### 🌏 華語教材版本設定")
         csl_version_full = st.selectbox("教材版本", ["T版 (共7冊)", "L版 (共12冊)", "V版 (共5冊)"])
         
-        # 顯示時只抓取括號前面的名稱 (例如把 "T版 (共7冊)" 變成 "T版")
         csl_version = csl_version_full.split(" ")[0]
         
         CSL_MDD_NORM = {
