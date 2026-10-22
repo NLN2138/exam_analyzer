@@ -20,27 +20,41 @@ openai_api_key = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
 client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
 def get_smart_split_suggestion(sentence: str, mdd: float, target_level: str) -> str:
-    """呼叫 ChatGPT API 進行智慧拆句建議"""
+    """呼叫 ChatGPT API 進行智慧拆句建議（動態適應資源班與多語情境版）"""
     if not client:
         return "⚠️ 未偵測到 OPENAI_API_KEY，請先至 Streamlit Secrets 設定金鑰。"
         
+    # 動態決定 AI 的改寫策略與標題
+    action_title = "「語意順暢與微調降載改寫」"
+    rule_1 = f"1. 【符合目標年級的微調降載】：不需要過度零碎地暴力切斷句子，只需將超出「{target_level}」認知負荷的冗長修飾語適度梳理，使其「簡單順口一點點」即可。絕對不可過度簡化至低年級程度。"
+
+    if "特教資源班" in target_level:
+        action_title = "「大幅降載與語意直白化改寫」"
+        rule_1 = "1. 【特教資源班的大幅降載】：目標對象需要極低的認知負荷。請將長句「徹底拆解」為多個短句，移除不必要的抽象修飾語，改用最直白、具體且口語化的句型，務必大幅降低 MDD。"
+    elif "資優資源班" in target_level:
+        action_title = "「進階語句重組與邏輯淬鍊」"
+        rule_1 = "1. 【資優資源班的結構挑戰】：目標對象能處理複雜句型。不需要刻意切碎句子，請保留長句的邏輯層次，甚至可以運用更精鍊的進階論述句型與複合結構，確保句子的挑戰性與學術深度。"
+    elif "華語為第二外語" in target_level:
+        action_title = "「適合二語學習者的平易改寫」"
+        rule_1 = "1. 【二語學習者的結構降載】：請配合外語學習者的階段，拆解複雜的嵌套結構（尤其是過長的前置修飾語），盡量還原為基礎的「主語-動詞-受語」線性結構，避免母語者慣用但對外國人困難的隱喻或省略句。"
+
     prompt = f"""
     你是一位專業的華語文教材編輯與句法學專家，非常熟悉臺灣教育現場的學生閱讀習慣與自然語感。
-    請根據以下高難度句子（當前 MDD: {mdd}）進行「語意順暢與降載改寫」。
+    請根據以下句子（當前 MDD: {mdd}）進行{action_title}。
 
-    【目標對象】：{target_level} (請務必符合此階段學生的閱讀理解能力)
+    【目標對象】：{target_level}
 
     請依據以下原則給出具體建議，此原則需適用於所有學科句型：
-    1. 【符合目標年級的微調降載】：不需要過度零碎地暴力切斷句子，只需將超出「{target_level}」認知負荷的冗長修飾語或嵌套結構適度梳理，使其「簡單順口一點點」即可。絕對不可過度簡化至低年級程度（除非目標對象為特教資源班或初階華語學習者）。
+    {rule_1}
     2. 【臺灣華語自然語感】：絕對避免機器人翻譯腔。請善用中文原生的「流水句」習慣，透過標點符號的停頓或語意順敘來自然銜接。
-    3. 【精準保留原意】：改寫後必須100%保留原本的學科知識點、專有名詞與邏輯關聯，不能因為改寫而改變測驗焦點。
+    3. 【精準保留原意】：改寫後必須100%保留原本的學科核心知識點、專有名詞與邏輯關聯，不能因為改寫而改變測驗焦點。
 
     原句：
     {sentence}
 
     請直接輸出以下格式（無須多餘問候）：
-    **【複雜度分析】**：簡短一句話指出原句最繞口或造成大腦負擔的結構痛點。
-    **【改寫建議】**：(提供自然通順、符合【{target_level}】程度的微調改寫結果，並用**粗體**標示出關鍵修改處)
+    **【複雜度分析】**：簡短一句話指出原句最繞口、造成負擔，或是結構邏輯可再優化的痛點。
+    **【改寫建議】**：(提供自然通順、完全符合【{target_level}】程度的改寫結果，並用**粗體**標示出關鍵修改處)
     """
     
     try:
@@ -872,10 +886,10 @@ with st.sidebar:
                 
                 if adj_val < 0:
                     norm_text = f"基準: {norm_mean:.2f} (原常模降載 {abs(adj_val):.2f})"
-                    target_level = f"{ref_region} {ref_school} {ref_grade} (特教資源班)"
+                    target_level = f"{ref_region} {ref_school} {ref_grade} (特教資源班，需降低認知負擔與長句)"
                 elif adj_val > 0:
                     norm_text = f"基準: {norm_mean:.2f} (原常模提升 {adj_val:.2f})"
-                    target_level = f"{ref_region} {ref_school} {ref_grade} (資優資源班)"
+                    target_level = f"{ref_region} {ref_school} {ref_grade} (資優資源班，能理解更複雜的句型結構)"
                 else:
                     norm_text = f"基準: {norm_mean:.2f} (未調整)"
                     target_level = f"{ref_region} {ref_school} {ref_grade} (資源班)"
