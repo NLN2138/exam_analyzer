@@ -772,7 +772,7 @@ def render_overall_summary(df: pd.DataFrame, norm_mean: Optional[float], norm_st
             difficulty_label = "適中"
             
         c3.metric(
-            label="🧠 句法結構負擔 (MDD)", 
+            label="🧠 句法結構負擔 (平均MDD)", 
             value=f"{avg_mdd:.2f}", 
             delta=f"與基準比: {difficulty_label} ({mdd_diff:+.2f})",
             delta_color=delta_color,
