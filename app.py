@@ -779,7 +779,7 @@ def render_overall_summary(df: pd.DataFrame, norm_mean: Optional[float], norm_st
             help=f"基準平均: {norm_mean:.2f}, 標準差: {norm_std:.2f}"
         )
     else:
-        c3.metric("🧠 句法結構負擔 (MDD)", f"{avg_mdd:.2f}", help="目前選擇的科目或年級無基準資料")
+        c3.metric("🧠 句法結構負擔 (平均MDD)", f"{avg_mdd:.2f}", help="目前選擇的科目或年級無基準資料")
         
     st.divider()
     
@@ -1011,12 +1011,12 @@ with tab1:
             mdd_diff = features['mdd'] - norm_mean
             z = mdd_diff / norm_std
             difficulty_label = "偏難" if z > 0.5 else "偏易" if z < -0.5 else "適中"
-            cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", 
+            cols[2].metric("🧠 句法結構負擔 (平均MDD)", f"{features['mdd']:.2f}", 
                            delta=f"與基準比: {difficulty_label} ({mdd_diff:+.2f})", 
                            delta_color="inverse" if z > 0.5 else "normal" if z < -0.5 else "off",
                            help=norm_text)
         else:
-            cols[2].metric("🧠 句法結構負擔 (MDD)", f"{features['mdd']:.2f}", help="無基準資料")
+            cols[2].metric("🧠 句法結構負擔 (平均MDD)", f"{features['mdd']:.2f}", help="無基準資料")
             
         cols[3].metric("🔗 複句結構", features["clause_types"])
         st.write("")
