@@ -922,8 +922,8 @@ with st.sidebar:
         norm_mean = vol_list[vol_idx]
         norm_std = 0.85 
         norm_text = f"基準: {norm_mean:.2f} (虛擬常模)"
-        target_level = f"華語為第二外語學習者 ({csl_version} {csl_vol})"
-        subject = "華語文為第二外語"
+        target_level = f"華語為第二外語教材 ({csl_version} {csl_vol})"
+        subject = "CSL教材"
 
     st.divider()
     st.markdown("### 👁 介面顯示設定")
