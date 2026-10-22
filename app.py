@@ -815,7 +815,7 @@ def render_statistics_charts(df: pd.DataFrame):
 # ==========================================
 with st.sidebar:
     st.markdown("### 🎯 參照基準模式設定")
-    eval_mode = st.radio("選擇評估模式", ["普通班", "資源班 (測試中)", "華語為第二外語 (測試中)"])
+    eval_mode = st.radio("選擇評估模式", ["普通班", "資源班", "華語為第二外語 (測試中)"])
     
     norm_mean, norm_std = None, None
     norm_text = ""
@@ -825,7 +825,7 @@ with st.sidebar:
     
     st.divider()
 
-    if eval_mode in ["普通班", "資源班 (測試中)"]:
+    if eval_mode in ["普通班", "資源班"]:
         subject = st.selectbox("學科", ["全部學科", "國語文", "數學", "社會", "自然"])
         ref_school = st.selectbox("學制", ["國小", "國中", "高中"])
         
