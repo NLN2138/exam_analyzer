@@ -883,7 +883,7 @@ with st.sidebar:
     else: 
         current_term_set = SUBJECT_TERMS.get("國語文", set()) 
         st.markdown("#### 🌏 華語教材版本設定")
-        csl_version = st.selectbox("教材版本", ["T版 (共7冊)", "L版 (共12冊)", "V版 (共5冊)"])
+        csl_version = st.selectbox("教材版本", ["T版", "L版", "V版"])
         
         CSL_MDD_NORM = {
             "T版 (共7冊)": [3.20, 3.40, 3.60, 3.80, 4.00, 4.15, 4.30],
